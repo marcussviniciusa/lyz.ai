@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
 import Link from 'next/link'
+import { Upload, FileText, Eye, Trash2, Download, Search, Filter } from 'lucide-react'
 
 interface Exam {
   _id: string
@@ -25,11 +26,11 @@ interface Patient {
   birthDate: string
 }
 
-export default function PatientExamsPage() {
+export default function PatientExamsPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const { data: session } = useSession()
   const router = useRouter()
-  const params = useParams()
-  const patientId = params.id as string
+  const patientId = resolvedParams.id
 
   const [patient, setPatient] = useState<Patient | null>(null)
   const [exams, setExams] = useState<Exam[]>([])

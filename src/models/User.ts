@@ -24,7 +24,6 @@ const UserSchema = new Schema<IUser>({
   email: {
     type: String,
     required: [true, 'Email é obrigatório'],
-    unique: true,
     lowercase: true,
     trim: true,
     match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Email inválido']
@@ -65,7 +64,7 @@ const UserSchema = new Schema<IUser>({
 })
 
 // Índices para melhor performance
-UserSchema.index({ email: 1 })
+UserSchema.index({ email: 1 }, { unique: true })
 UserSchema.index({ company: 1, role: 1 })
 UserSchema.index({ active: 1 })
 

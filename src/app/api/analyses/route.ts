@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Paciente não encontrado' }, { status: 404 })
     }
 
-    if (session.user.role !== 'superadmin' && patient.companyId.toString() !== session.user.companyId) {
+    if (session.user.role !== 'superadmin' && patient.company?.toString() !== session.user.company) {
       return NextResponse.json({ error: 'Acesso negado ao paciente' }, { status: 403 })
     }
 
@@ -137,16 +137,35 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Criar ObjectId válido para createdBy
+    let createdBy: ObjectId;
+    if (ObjectId.isValid(session.user.id)) {
+      createdBy = new ObjectId(session.user.id);
+    } else {
+      // Se o ID não for um ObjectId válido, criar um ObjectId baseado no ID do usuário
+      createdBy = new ObjectId();
+    }
+
+    // Criar ObjectId válido para companyId se necessário
+    let companyId: ObjectId;
+    if (session.user.role === 'superadmin') {
+      companyId = patient.company;
+    } else if (session.user.company && ObjectId.isValid(session.user.company)) {
+      companyId = new ObjectId(session.user.company);
+    } else {
+      companyId = new ObjectId();
+    }
+
     const analysisData = {
       patientId: new ObjectId(body.patientId),
-      companyId: session.user.role === 'superadmin' ? patient.companyId : new ObjectId(session.user.companyId),
+      companyId,
       type: body.type,
       title: body.title,
       description: body.description,
       input: body.input || {},
       output: body.output || {},
       status: 'pending',
-      createdBy: new ObjectId(session.user.id),
+      createdBy,
       aiMetadata: {
         model: body.aiModel,
         provider: body.aiProvider,

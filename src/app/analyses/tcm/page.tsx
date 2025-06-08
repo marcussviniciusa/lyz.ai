@@ -1,10 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Eye, Heart, Clock, Save, Play } from 'lucide-react';
+import { 
+  ArrowLeft, Heart, Leaf, Yin, Yang, Zap
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
 import DashboardLayout from '@/components/DashboardLayout';
 import { IPatient } from '@/models/Patient';
 
@@ -50,7 +57,6 @@ interface TCMData {
 }
 
 export default function TCMAnalysisPage() {
-  const { data: session, status } = useSession();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [patients, setPatients] = useState<IPatient[]>([]);
@@ -97,12 +103,6 @@ export default function TCMAnalysisPage() {
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
-
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/signin');
-    }
-  }, [status, router]);
 
   useEffect(() => {
     fetchPatients();
@@ -717,51 +717,7 @@ export default function TCMAnalysisPage() {
               </button>
               <div className="flex space-x-3">
                 <button
-                  onClick={() => {
-                    setStep(1);
-                    setSelectedPatient(null);
-                    setResult(null);
-                    setTcmData({
-                      lingualObservation: {
-                        color: '',
-                        coating: '',
-                        texture: '',
-                        moisture: '',
-                        size: '',
-                        mobility: '',
-                        marks: ''
-                      },
-                      pulseAnalysis: {
-                        rate: '',
-                        rhythm: '',
-                        strength: '',
-                        depth: '',
-                        quality: '',
-                        tension: ''
-                      },
-                      generalObservation: {
-                        complexion: '',
-                        eyes: '',
-                        voice: '',
-                        breathing: '',
-                        posture: '',
-                        mood: ''
-                      },
-                      symptoms: {
-                        sleep: '',
-                        digestion: '',
-                        appetite: '',
-                        thirst: '',
-                        urination: '',
-                        bowelMovement: '',
-                        temperature: '',
-                        sweating: '',
-                        menstruation: '',
-                        emotions: ''
-                      },
-                      additionalNotes: ''
-                    });
-                  }}
+                  onClick={resetForm}
                   className="px-6 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50"
                 >
                   Nova Análise

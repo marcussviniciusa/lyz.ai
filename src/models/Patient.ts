@@ -12,7 +12,7 @@ export interface IPatient extends Document {
   weight?: number
   
   // Histórico Menstrual
-  menstrualHistory: {
+  menstrualHistory?: {
     menarche: number // idade da menarca
     cycleLength: number // duração do ciclo em dias
     menstruationLength: number // duração da menstruação em dias
@@ -103,30 +103,25 @@ const PatientSchema = new Schema<IPatient>({
   menstrualHistory: {
     menarche: {
       type: Number,
-      required: true,
       min: [8, 'Idade da menarca muito baixa'],
       max: [18, 'Idade da menarca muito alta']
     },
     cycleLength: {
       type: Number,
-      required: true,
       min: [21, 'Ciclo muito curto'],
       max: [45, 'Ciclo muito longo']
     },
     menstruationLength: {
       type: Number,
-      required: true,
       min: [1, 'Duração da menstruação muito curta'],
       max: [10, 'Duração da menstruação muito longa']
     },
     lastMenstruation: {
-      type: Date,
-      required: true
+      type: Date
     },
     menopausalStatus: {
       type: String,
-      enum: ['pre', 'peri', 'post'],
-      required: true
+      enum: ['pre', 'peri', 'post']
     },
     contraceptiveUse: {
       type: String,
@@ -136,6 +131,7 @@ const PatientSchema = new Schema<IPatient>({
   mainSymptoms: [{
     symptom: {
       type: String,
+      required: true,
       required: true,
       trim: true
     },
@@ -149,12 +145,12 @@ const PatientSchema = new Schema<IPatient>({
   medicalHistory: {
     personalHistory: {
       type: String,
-      required: true,
+      
       trim: true
     },
     familyHistory: {
       type: String,
-      required: true,
+      
       trim: true
     },
     allergies: [{
@@ -169,17 +165,17 @@ const PatientSchema = new Schema<IPatient>({
   medications: [{
     name: {
       type: String,
-      required: true,
+      
       trim: true
     },
     dosage: {
       type: String,
-      required: true,
+      
       trim: true
     },
     frequency: {
       type: String,
-      required: true,
+      
       trim: true
     },
     type: {
@@ -196,7 +192,7 @@ const PatientSchema = new Schema<IPatient>({
     },
     sleepHours: {
       type: Number,
-      required: true,
+      
       min: 0,
       max: 24
     },
@@ -228,12 +224,12 @@ const PatientSchema = new Schema<IPatient>({
   treatmentGoals: {
     goals: [{
       type: String,
-      required: true,
+      
       trim: true
     }],
     expectations: {
       type: String,
-      required: true,
+      
       trim: true
     },
     additionalNotes: {

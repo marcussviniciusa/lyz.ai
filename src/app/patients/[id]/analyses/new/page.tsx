@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,8 @@ interface Patient {
   dateOfBirth: string
 }
 
-export default function NewAnalysisPage({ params }: { params: { id: string } }) {
+export default function NewAnalysisPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -30,11 +31,11 @@ export default function NewAnalysisPage({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     fetchPatient()
-  }, [params.id])
+  }, [resolvedParams.id])
 
   const fetchPatient = async () => {
     try {
-      const response = await fetch(`/api/patients/${params.id}`)
+      const response = await fetch(`/api/patients/${resolvedParams.id}`)
       if (response.ok) {
         const data = await response.json()
         setPatient(data)
@@ -64,7 +65,7 @@ export default function NewAnalysisPage({ params }: { params: { id: string } }) 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          patientId: params.id,
+          patientId: resolvedParams.id,
           type: formData.type,
           title: formData.title,
           description: formData.description,

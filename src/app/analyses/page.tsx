@@ -8,11 +8,10 @@ import DashboardLayout from '@/components/DashboardLayout'
 export default function AnalysesPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [activeTab, setActiveTab] = useState('laboratory')
 
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/auth/login')
+      router.push('/auth/signin')
     }
   }, [status, router])
 

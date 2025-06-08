@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
-import MinIOService from '@/lib/minio'
+import RAGService from '@/lib/ragService'
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +21,13 @@ export async function POST(request: NextRequest) {
     if (!file) {
       return NextResponse.json(
         { error: 'Nenhum arquivo fornecido' },
+        { status: 400 }
+      )
+    }
+
+    if (!category) {
+      return NextResponse.json(
+        { error: 'Categoria é obrigatória' },
         { status: 400 }
       )
     }
@@ -52,42 +59,44 @@ export async function POST(request: NextRequest) {
     // Gerar nome único para o arquivo
     const timestamp = Date.now()
     const fileName = `${timestamp}-${file.name}`
-    const bucketName = 'rag-documents'
 
     try {
-      // Upload para MinIO
+      // Processar documento com RAG completo
       const buffer = Buffer.from(await file.arrayBuffer())
       
-      const uploadResult = await MinIOService.uploadFile(
-        buffer,
-        file.name,
-        {
-          folder: 'rag-documents',
-          filename: fileName,
-          contentType: file.type
-        }
-      )
-
-      // TODO: Aqui você adicionaria o processamento RAG
-      // - Extrair texto do documento
-      // - Dividir em chunks
-      // - Gerar embeddings
-      // - Salvar no banco de dados
-      
-      // Por enquanto, retornar sucesso simples
-      return NextResponse.json({
-        success: true,
+      const documentId = await RAGService.processDocument({
+        fileBuffer: buffer,
         fileName,
-        fileKey: uploadResult.key,
-        fileUrl: uploadResult.url,
-        fileSize: uploadResult.size,
-        message: 'Arquivo enviado com sucesso. Processamento RAG será implementado.'
+        originalFileName: file.name,
+        mimeType: file.type,
+        category,
+        companyId: session.user.company,
+        uploadedBy: session.user.id
       })
 
-    } catch (minioError: any) {
-      console.error('Erro no MinIO:', minioError)
+      return NextResponse.json({
+        success: true,
+        documentId,
+        fileName,
+        originalFileName: file.name,
+        fileSize: file.size,
+        category,
+        message: 'Documento enviado e processamento RAG iniciado com sucesso!'
+      })
+
+    } catch (error: any) {
+      console.error('Erro no processamento RAG:', error)
+      
+      // Retornar erro mais específico
+      if (error.message.includes('OpenAI')) {
+        return NextResponse.json(
+          { error: 'Erro na configuração da IA. Verifique as chaves da API.' },
+          { status: 500 }
+        )
+      }
+      
       return NextResponse.json(
-        { error: 'Erro ao armazenar arquivo' },
+        { error: error.message || 'Erro ao processar documento' },
         { status: 500 }
       )
     }

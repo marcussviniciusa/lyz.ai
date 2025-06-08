@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import connectDB from '@/lib/db'
+import dbConnect from '@/lib/db'
 import IFMAnalysis from '@/models/IFMAnalysis'
 import Patient from '@/models/Patient'
 import Company from '@/models/Company'
@@ -10,7 +10,7 @@ import OpenAI from 'openai'
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB()
+    await dbConnect()
     
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
@@ -367,7 +367,7 @@ Forneça uma análise IFM estruturada no seguinte formato JSON:
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
+    await dbConnect()
     
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {

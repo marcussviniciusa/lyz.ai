@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import connectDB from '@/lib/db'
+import dbConnect from '@/lib/db'
 import User from '@/models/User'
 import Patient from '@/models/Patient'
 import Analysis from '@/models/Analysis'
@@ -10,7 +10,7 @@ import Company from '@/models/Company'
 
 export async function GET(request: NextRequest) {
   try {
-    await connectDB()
+    await dbConnect()
 
     // Verificar autenticação
     const session = await getServerSession(authOptions)

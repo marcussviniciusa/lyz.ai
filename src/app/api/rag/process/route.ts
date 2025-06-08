@@ -3,14 +3,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { AIService } from '@/lib/ai-service';
 import { RAGService } from '@/lib/rag-service';
-import connectDB from '@/lib/db';
+import dbConnect from '@/lib/db';
 import User from '@/models/User';
 import Document from '@/models/Document';
 import { MinIOService } from '@/lib/minio';
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await dbConnect();
 
     // Verificar autenticação
     const session = await getServerSession(authOptions);
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
 // API para reprocessar um documento
 export async function PUT(request: NextRequest) {
   try {
-    await connectDB();
+    await dbConnect();
 
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {

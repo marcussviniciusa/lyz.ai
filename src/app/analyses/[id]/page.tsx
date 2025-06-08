@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -45,16 +45,19 @@ interface Analysis {
   updatedAt: string
 }
 
-export default function AnalysisDetailsPage({ params }: { params: { id: string } }) {
-  const [analysis, setAnalysis] = useState<Analysis | null>(null)
-  const [loading, setLoading] = useState(true)
+export default function AnalysisDetailPage({ params }: { params: { id: string } }) {
+  const [analysis, setAnalysis] = useState<{
+    id: string;
+    type: string;
+    result: string;
+    createdAt: string;
+    patientId: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter()
 
-  useEffect(() => {
-    fetchAnalysis()
-  }, [params.id])
-
-  const fetchAnalysis = async () => {
+  const fetchAnalysis = useCallback(async () => {
     try {
       const response = await fetch(`/api/analyses/${params.id}`)
       if (response.ok) {
@@ -68,7 +71,11 @@ export default function AnalysisDetailsPage({ params }: { params: { id: string }
     } finally {
       setLoading(false)
     }
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    fetchAnalysis()
+  }, [fetchAnalysis])
 
   const getAnalysisTypeLabel = (type: string) => {
     const types: { [key: string]: string } = {
@@ -131,7 +138,7 @@ export default function AnalysisDetailsPage({ params }: { params: { id: string }
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="flex items-center gap-4 mb-6">
-        <Link href={`/patients/${analysis.patient._id}`}>
+        <Link href={`/patients/${analysis.patientId}`}>
           <Button variant="outline" size="icon">
             <ArrowLeftIcon className="w-4 h-4" />
           </Button>
@@ -181,7 +188,7 @@ export default function AnalysisDetailsPage({ params }: { params: { id: string }
               </div>
               <div>
                 <h4 className="font-semibold text-sm text-gray-700">Paciente</h4>
-                <Link href={`/patients/${analysis.patient._id}`} className="text-sm text-blue-600 hover:underline">
+                <Link href={`/patients/${analysis.patientId}`} className="text-sm text-blue-600 hover:underline">
                   {analysis.patient.name}
                 </Link>
               </div>
@@ -308,7 +315,7 @@ export default function AnalysisDetailsPage({ params }: { params: { id: string }
 
         {/* Ações */}
         <div className="flex justify-between">
-          <Link href={`/patients/${analysis.patient._id}`}>
+          <Link href={`/patients/${analysis.patientId}`}>
             <Button variant="outline">
               Voltar ao Paciente
             </Button>

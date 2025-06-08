@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       name,
+      birthDate,
       age,
       height,
       weight,
@@ -96,7 +97,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!age) {
+    // Calcular idade a partir da data de nascimento ou usar idade direta
+    let calculatedAge = age
+    if (birthDate && !age) {
+      const birth = new Date(birthDate)
+      const today = new Date()
+      calculatedAge = today.getFullYear() - birth.getFullYear()
+      const monthDiff = today.getMonth() - birth.getMonth()
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+        calculatedAge--
+      }
+    }
+
+    if (!calculatedAge || calculatedAge <= 0) {
       return NextResponse.json(
         { error: 'Idade é obrigatória' },
         { status: 400 }
@@ -116,46 +129,76 @@ export async function POST(request: NextRequest) {
     const companyId = new mongoose.Types.ObjectId() // Temporário - será substituído por company real
     const professionalId = new mongoose.Types.ObjectId() // Temporário - será substituído por user real
 
-    // Criar nova paciente
-    const patient = new Patient({
+    // Preparar dados do paciente
+    const patientData: any = {
       name,
-      age,
-      height,
-      weight,
-      menstrualHistory: {
-        menarche: menstrualHistory?.menarche || 12,
-        cycleLength: menstrualHistory?.cycleLength || 28,
-        menstruationLength: menstrualHistory?.menstruationLength || 5,
-        lastMenstruation: menstrualHistory?.lastMenstruation ? new Date(menstrualHistory.lastMenstruation) : new Date(),
-        menopausalStatus: menstrualHistory?.menopausalStatus || 'pre',
-        contraceptiveUse: menstrualHistory?.contraceptiveUse || 'none'
-      },
-      mainSymptoms: mainSymptoms || [],
-      medicalHistory: {
-        personalHistory: medicalHistory?.personalHistory || 'Não informado',
-        familyHistory: medicalHistory?.familyHistory || 'Não informado',
-        allergies: medicalHistory?.allergies || [],
-        previousTreatments: medicalHistory?.previousTreatments || []
-      },
-      medications: medications || [],
-      lifestyle: {
-        sleepQuality: lifestyle?.sleepQuality || 'regular',
-        sleepHours: lifestyle?.sleepHours || 8,
-        exerciseFrequency: lifestyle?.exerciseFrequency || 'regular',
-        exerciseType: lifestyle?.exerciseType || 'cardio',
-        stressLevel: lifestyle?.stressLevel || 'moderate',
-        nutritionQuality: lifestyle?.nutritionQuality || 'regular',
-        relationshipQuality: lifestyle?.relationshipQuality || 'regular'
-      },
-      treatmentGoals: {
-        goals: treatmentGoals?.goals || ['Não especificado'],
-        expectations: treatmentGoals?.expectations || 'Melhoria geral da saúde',
-        additionalNotes: treatmentGoals?.additionalNotes || ''
-      },
-      company: companyId, // ObjectId temporário
-      professional: professionalId, // ObjectId temporário
+      age: calculatedAge,
+      company: companyId,
+      professional: professionalId,
       isActive: true
-    })
+    }
+
+    // Adicionar campos opcionais apenas se fornecidos
+    if (height) patientData.height = height
+    if (weight) patientData.weight = weight
+
+    // Adicionar histórico menstrual apenas se dados foram fornecidos
+    if (menstrualHistory && (
+      menstrualHistory.menarche || 
+      menstrualHistory.cycleLength || 
+      menstrualHistory.menstruationLength || 
+      menstrualHistory.lastMenstruation || 
+      menstrualHistory.menopausalStatus ||
+      menstrualHistory.contraceptiveUse
+    )) {
+      patientData.menstrualHistory = {
+        menarche: menstrualHistory.menarche || 12,
+        cycleLength: menstrualHistory.cycleLength || 28,
+        menstruationLength: menstrualHistory.menstruationLength || 5,
+        lastMenstruation: menstrualHistory.lastMenstruation ? new Date(menstrualHistory.lastMenstruation) : new Date(),
+        menopausalStatus: menstrualHistory.menopausalStatus || 'pre',
+        contraceptiveUse: menstrualHistory.contraceptiveUse || 'none'
+      }
+    }
+
+    // Adicionar sintomas principais apenas se fornecidos
+    if (mainSymptoms && mainSymptoms.length > 0) {
+      patientData.mainSymptoms = mainSymptoms
+    }
+
+    // Histórico médico sempre com dados padrão se não fornecido
+    patientData.medicalHistory = {
+      personalHistory: medicalHistory?.personalHistory || 'Não informado',
+      familyHistory: medicalHistory?.familyHistory || 'Não informado',
+      allergies: medicalHistory?.allergies || [],
+      previousTreatments: medicalHistory?.previousTreatments || []
+    }
+
+    // Medicamentos apenas se fornecidos
+    if (medications && medications.length > 0) {
+      patientData.medications = medications
+    }
+
+    // Estilo de vida sempre com dados padrão se não fornecido
+    patientData.lifestyle = {
+      sleepQuality: lifestyle?.sleepQuality || 'regular',
+      sleepHours: lifestyle?.sleepHours || 8,
+      exerciseFrequency: lifestyle?.exerciseFrequency || 'regular',
+      exerciseType: lifestyle?.exerciseType || 'cardio',
+      stressLevel: lifestyle?.stressLevel || 'moderate',
+      nutritionQuality: lifestyle?.nutritionQuality || 'regular',
+      relationshipQuality: lifestyle?.relationshipQuality || 'regular'
+    }
+
+    // Objetivos de tratamento sempre com dados padrão se não fornecido
+    patientData.treatmentGoals = {
+      goals: treatmentGoals?.goals || ['Não especificado'],
+      expectations: treatmentGoals?.expectations || 'Melhoria geral da saúde',
+      additionalNotes: treatmentGoals?.additionalNotes || ''
+    }
+
+    // Criar nova paciente
+    const patient = new Patient(patientData)
 
     await patient.save()
 
@@ -183,4 +226,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

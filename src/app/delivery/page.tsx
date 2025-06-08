@@ -2,431 +2,459 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
-
-interface Patient {
-  _id: string
-  name: string
-  email: string
-  phone?: string
-}
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { 
+  Send, 
+  Eye, 
+  Download, 
+  Mail,
+  MessageCircle,
+  Calendar,
+  User,
+  FileText,
+  CheckCircle2,
+  Clock,
+  AlertCircle
+} from 'lucide-react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import Link from 'next/link'
 
 interface DeliveryPlan {
   _id: string
-  patientId: Patient
-  treatmentPlan: any
-  laboratorial?: any
-  mtc?: any
-  chronology?: any
-  ifmMatrix?: any
-  status: 'ready' | 'delivered' | 'viewed'
-  deliveredAt?: Date
-  viewedAt?: Date
-  deliveryMethod: 'email' | 'sms' | 'portal'
-  createdAt: Date
+  patient: {
+    _id: string
+    name: string
+    email: string
+    phone?: string
+  }
+  professional: {
+    _id: string
+    name: string
+    email: string
+  }
+  analyses: any[]
+  finalPlan: {
+    executiveSummary: string
+    laboratoryFindings: string
+    tcmDiagnosis: string
+    chronologyInsights: string
+    ifmAssessment: string
+    treatmentPlan: string
+    recommendations: string[]
+    followUpPlan: string
+  }
+  status: 'draft' | 'ready_for_delivery' | 'delivered' | 'viewed_by_patient'
+  deliveryMethod: 'email' | 'app' | 'printed'
+  scheduledFor?: string
+  deliveredAt?: string
+  viewedAt?: string
+  patientFeedback?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export default function DeliveryPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [deliveryPlans, setDeliveryPlans] = useState<DeliveryPlan[]>([])
+  const { data: session } = useSession()
+  const [plans, setPlans] = useState<DeliveryPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedPlan, setSelectedPlan] = useState<DeliveryPlan | null>(null)
-  const [deliveryMethod, setDeliveryMethod] = useState<'email' | 'sms' | 'portal'>('email')
-  const [customMessage, setCustomMessage] = useState('')
-
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/auth/login')
-    }
-  }, [status, router])
+  const [deliveryMethod, setDeliveryMethod] = useState('email')
+  const [scheduledDate, setScheduledDate] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     if (session) {
-      fetchDeliveryPlans()
+      loadDeliveryPlans()
     }
   }, [session])
 
-  const fetchDeliveryPlans = async () => {
+  const loadDeliveryPlans = async () => {
     try {
       const response = await fetch('/api/delivery/plans')
       if (response.ok) {
         const data = await response.json()
-        setDeliveryPlans(data.plans)
+        setPlans(data.plans || [])
       }
     } catch (error) {
-      console.error('Erro ao carregar planos para entrega:', error)
+      console.error('Erro ao carregar planos:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const deliverPlan = async () => {
-    if (!selectedPlan) return
+  const getStatusColor = (status: string) => {
+    const colors: { [key: string]: string } = {
+      draft: 'bg-gray-100 text-gray-800',
+      ready_for_delivery: 'bg-blue-100 text-blue-800',
+      delivered: 'bg-green-100 text-green-800',
+      viewed_by_patient: 'bg-purple-100 text-purple-800'
+    }
+    return colors[status] || 'bg-gray-100 text-gray-800'
+  }
 
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      draft: 'Rascunho',
+      ready_for_delivery: 'Pronto para Entrega',
+      delivered: 'Entregue',
+      viewed_by_patient: 'Visualizado pela Paciente'
+    }
+    return labels[status] || status
+  }
+
+  const handleDelivery = async (planId: string) => {
+    setSubmitting(true)
+    
     try {
-      const response = await fetch(`/api/delivery/plans/${selectedPlan._id}/deliver`, {
+      const response = await fetch(`/api/delivery/plans/${planId}/deliver`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          deliveryMethod,
-          customMessage,
+          method: deliveryMethod,
+          scheduledFor: scheduledDate
         }),
       })
 
       if (response.ok) {
-        fetchDeliveryPlans()
+        const data = await response.json()
+        alert(data.message)
         setSelectedPlan(null)
-        setCustomMessage('')
-        setDeliveryMethod('email')
+        await loadDeliveryPlans()
+      } else {
+        const error = await response.json()
+        alert(`Erro: ${error.error}`)
       }
     } catch (error) {
-      console.error('Erro ao entregar plano:', error)
+      console.error('Erro na entrega:', error)
+      alert('Erro ao processar entrega')
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const previewPlan = (plan: DeliveryPlan) => {
-    setSelectedPlan(plan)
-  }
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      ready: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Pronto para Entrega' },
-      delivered: { bg: 'bg-green-100', text: 'text-green-800', label: 'Entregue' },
-      viewed: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Visualizado' },
+  const generatePDF = async (planId: string) => {
+    try {
+      const response = await fetch(`/api/delivery/plans/${planId}/pdf`)
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `plano-tratamento-${planId}.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      }
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error)
+      alert('Erro ao gerar PDF')
     }
-    const config = statusConfig[status as keyof typeof statusConfig]
-    return (
-      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    )
-  }
-
-  if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando planos para entrega...</p>
-        </div>
-      </div>
-    )
   }
 
   if (!session) {
-    return null
+    return <div>Carregando...</div>
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Carregando planos de entrega...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="md:flex md:items-center md:justify-between">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
-                Entrega de Planos
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Gerencie a entrega dos planos de tratamento finalizados para os pacientes
-              </p>
-            </div>
-            <div className="mt-4 flex md:mt-0 md:ml-4">
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                {deliveryPlans.filter(p => p.status === 'ready').length} prontos
-              </span>
-            </div>
+        <div className="md:flex md:items-center md:justify-between mb-8">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-2xl font-bold leading-7 text-gray-900 sm:text-3xl sm:truncate">
+              Entrega de Planos
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Gerencie a entrega dos planos de tratamento finalizados para as pacientes
+            </p>
           </div>
+        </div>
+
+        {/* Estatísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <FileText className="h-8 w-8 text-gray-600" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Rascunhos
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {plans.filter(p => p.status === 'draft').length}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <AlertCircle className="h-8 w-8 text-blue-600" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Prontos
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {plans.filter(p => p.status === 'ready_for_delivery').length}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <Send className="h-8 w-8 text-green-600" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Entregues
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {plans.filter(p => p.status === 'delivered').length}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <Eye className="h-8 w-8 text-purple-600" />
+                </div>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      Visualizados
+                    </dt>
+                    <dd className="text-lg font-medium text-gray-900">
+                      {plans.filter(p => p.status === 'viewed_by_patient').length}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Lista de Planos */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Planos de Tratamento
-            </h3>
-            
-            {deliveryPlans.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Paciente
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Contato
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Data de Criação
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Entregue em
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ações
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {deliveryPlans.map((plan) => (
-                      <tr key={plan._id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {plan.patientId?.name || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div>
-                            <div>{plan.patientId?.email || 'N/A'}</div>
-                            {plan.patientId?.phone && (
-                              <div className="text-xs text-gray-500">{plan.patientId.phone}</div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(plan.createdAt).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {getStatusBadge(plan.status)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {plan.deliveredAt 
-                            ? new Date(plan.deliveredAt).toLocaleDateString('pt-BR')
-                            : '-'
-                          }
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => previewPlan(plan)}
-                            className="text-primary-600 hover:text-primary-900 mr-4"
-                          >
-                            Preview
-                          </button>
-                          {plan.status === 'ready' && (
-                            <button
-                              onClick={() => setSelectedPlan(plan)}
-                              className="text-green-600 hover:text-green-900"
-                            >
-                              Entregar
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+        <Card>
+          <CardHeader>
+            <CardTitle>Planos de Tratamento</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {plans.length === 0 ? (
+              <div className="text-center py-12">
+                <FileText className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">
+                  Nenhum plano encontrado
+                </h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  Complete as análises para gerar planos de tratamento.
+                </p>
               </div>
             ) : (
-              <div className="text-center py-8">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="mt-2 text-sm text-gray-500">Nenhum plano pronto para entrega</p>
-                <p className="text-xs text-gray-400">Os planos aparecerão aqui quando as análises forem concluídas e aprovadas</p>
+              <div className="space-y-4">
+                {plans.map((plan) => (
+                  <div key={plan._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 mb-2">
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Plano de Tratamento
+                          </h3>
+                          <Badge className={getStatusColor(plan.status)}>
+                            {getStatusLabel(plan.status)}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600 mb-4">
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            <span>Paciente: {plan.patient.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            <span>Profissional: {plan.professional.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4" />
+                            <span>
+                              {format(new Date(plan.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {plan.finalPlan?.executiveSummary && (
+                          <div className="bg-gray-50 p-3 rounded-md mb-4">
+                            <h4 className="font-semibold text-sm text-gray-700 mb-1">
+                              Resumo Executivo:
+                            </h4>
+                            <p className="text-sm text-gray-600 line-clamp-3">
+                              {plan.finalPlan.executiveSummary}
+                            </p>
+                          </div>
+                        )}
+
+                        {plan.deliveredAt && (
+                          <div className="flex items-center gap-2 text-sm text-green-600">
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>
+                              Entregue em {format(new Date(plan.deliveredAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                            </span>
+                          </div>
+                        )}
+
+                        {plan.viewedAt && (
+                          <div className="flex items-center gap-2 text-sm text-purple-600">
+                            <Eye className="w-4 h-4" />
+                            <span>
+                              Visualizado em {format(new Date(plan.viewedAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => generatePDF(plan._id)}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          PDF
+                        </Button>
+
+                        <Link href={`/delivery/plans/${plan._id}`}>
+                          <Button variant="outline" size="sm">
+                            <Eye className="w-4 h-4 mr-2" />
+                            Visualizar
+                          </Button>
+                        </Link>
+
+                        {plan.status === 'ready_for_delivery' && (
+                          <Button
+                            size="sm"
+                            className="bg-blue-600 hover:bg-blue-700"
+                            onClick={() => setSelectedPlan(plan)}
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            Entregar
+                          </Button>
+                        )}
+
+                        {plan.status === 'delivered' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-green-600 border-green-600"
+                          >
+                            <MessageCircle className="w-4 h-4 mr-2" />
+                            Feedback
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Modal de Entrega */}
-        {selectedPlan && selectedPlan.status === 'ready' && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Entregar Plano: {selectedPlan.patientId?.name}
-                  </h3>
-                  <button
-                    onClick={() => setSelectedPlan(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+        {selectedPlan && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h3 className="text-xl font-bold mb-4">
+                Entregar Plano de Tratamento
+              </h3>
+              
+              <div className="mb-4 p-3 bg-gray-50 rounded-md">
+                <p className="font-semibold">Paciente: {selectedPlan.patient.name}</p>
+                <p className="text-sm text-gray-600">{selectedPlan.patient.email}</p>
+              </div>
 
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600">
-                    <strong>Paciente:</strong> {selectedPlan.patientId?.name}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    <strong>Email:</strong> {selectedPlan.patientId?.email}
-                  </p>
-                  {selectedPlan.patientId?.phone && (
-                    <p className="text-sm text-gray-600">
-                      <strong>Telefone:</strong> {selectedPlan.patientId.phone}
-                    </p>
-                  )}
-                </div>
-
-                {/* Método de Entrega */}
-                <div className="mb-4">
+              <div className="space-y-4">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Método de Entrega
                   </label>
                   <select
                     value={deliveryMethod}
-                    onChange={(e) => setDeliveryMethod(e.target.value as 'email' | 'sms' | 'portal')}
-                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+                    onChange={(e) => setDeliveryMethod(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="email">Email</option>
-                    <option value="sms">SMS</option>
-                    <option value="portal">Portal do Paciente</option>
+                    <option value="email">E-mail</option>
+                    <option value="app">Portal do Paciente</option>
+                    <option value="printed">Impressão</option>
                   </select>
                 </div>
 
-                {/* Mensagem Personalizada */}
-                <div className="mb-6">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mensagem Personalizada
+                    Agendar para (opcional)
                   </label>
-                  <textarea
-                    value={customMessage}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    rows={4}
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                    placeholder="Adicione uma mensagem personalizada para acompanhar o plano..."
+                  <input
+                    type="datetime-local"
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-
-                {/* Preview do Plano */}
-                <div className="mb-6">
-                  <h4 className="text-md font-medium text-gray-900 mb-2">Preview do Plano:</h4>
-                  <div className="bg-gray-50 p-4 rounded-md max-h-40 overflow-y-auto">
-                    <div className="text-sm text-gray-700">
-                      <h5 className="font-semibold mb-2">Plano de Tratamento Personalizado</h5>
-                      <p className="mb-2">
-                        <strong>Paciente:</strong> {selectedPlan.patientId?.name}
-                      </p>
-                      <p className="mb-2">
-                        <strong>Data:</strong> {new Date(selectedPlan.createdAt).toLocaleDateString('pt-BR')}
-                      </p>
-                      <div className="space-y-2">
-                        {selectedPlan.laboratorial && (
-                          <div>✅ Análise Laboratorial concluída</div>
-                        )}
-                        {selectedPlan.mtc && (
-                          <div>✅ Medicina Tradicional Chinesa concluída</div>
-                        )}
-                        {selectedPlan.chronology && (
-                          <div>✅ Cronologia de saúde concluída</div>
-                        )}
-                        {selectedPlan.ifmMatrix && (
-                          <div>✅ Matriz IFM concluída</div>
-                        )}
-                        {selectedPlan.treatmentPlan && (
-                          <div>✅ Plano de tratamento final concluído</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={() => setSelectedPlan(null)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={deliverPlan}
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                  >
-                    Entregar Plano
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* Modal de Preview */}
-        {selectedPlan && selectedPlan.status !== 'ready' && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-4/5 lg:w-3/4 shadow-lg rounded-md bg-white">
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Preview: {selectedPlan.patientId?.name}
-                  </h3>
-                  <button
-                    onClick={() => setSelectedPlan(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                <div className="bg-gray-50 p-6 rounded-md max-h-96 overflow-y-auto">
-                  <div className="prose max-w-none">
-                    <h4 className="text-lg font-semibold mb-4">Plano de Tratamento Completo</h4>
-                    
-                    {selectedPlan.treatmentPlan && (
-                      <div className="mb-6">
-                        <h5 className="font-medium mb-2">Plano Final:</h5>
-                        <pre className="text-sm whitespace-pre-wrap bg-white p-3 rounded border">
-                          {JSON.stringify(selectedPlan.treatmentPlan, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-
-                    {selectedPlan.laboratorial && (
-                      <div className="mb-6">
-                        <h5 className="font-medium mb-2">Análise Laboratorial:</h5>
-                        <div className="text-sm bg-white p-3 rounded border">
-                          Análise laboratorial concluída
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPlan.mtc && (
-                      <div className="mb-6">
-                        <h5 className="font-medium mb-2">Medicina Tradicional Chinesa:</h5>
-                        <div className="text-sm bg-white p-3 rounded border">
-                          Diagnóstico energético concluído
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPlan.chronology && (
-                      <div className="mb-6">
-                        <h5 className="font-medium mb-2">Cronologia:</h5>
-                        <div className="text-sm bg-white p-3 rounded border">
-                          Timeline de saúde criada
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedPlan.ifmMatrix && (
-                      <div className="mb-6">
-                        <h5 className="font-medium mb-2">Matriz IFM:</h5>
-                        <div className="text-sm bg-white p-3 rounded border">
-                          Análise sistêmica concluída
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end mt-4">
-                  <button
-                    onClick={() => setSelectedPlan(null)}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                  >
-                    Fechar
-                  </button>
-                </div>
+              <div className="flex justify-end gap-4 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setSelectedPlan(null)}
+                  disabled={submitting}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => handleDelivery(selectedPlan._id)}
+                  disabled={submitting}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {submitting ? 'Processando...' : 'Entregar Agora'}
+                </Button>
               </div>
             </div>
           </div>

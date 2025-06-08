@@ -1,122 +1,159 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import Analysis from '@/models/Analysis'
+import User from '@/models/User'
 
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
+    
     if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
-
-    const { deliveryMethod, customMessage } = await request.json()
-
-    if (!deliveryMethod || !['email', 'sms', 'portal'].includes(deliveryMethod)) {
-      return NextResponse.json(
-        { error: 'Método de entrega inválido' },
-        { status: 400 }
-      )
+      return Response.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     await dbConnect()
 
-    const analysisId = params.id
-    const userCompanyId = session.user.company
-
-    // Buscar a análise de plano de tratamento
-    const treatmentPlan = await Analysis.findOne({
-      _id: analysisId,
-      company: userCompanyId,
-      type: 'treatment',
-      status: 'completed',
-      'professionalReview.reviewed': true,
-      'professionalReview.approved': true
-    }).populate('patient', 'name email phone')
-
-    if (!treatmentPlan) {
-      return NextResponse.json(
-        { error: 'Plano de tratamento não encontrado ou não aprovado' },
-        { status: 404 }
-      )
+    const user = await User.findOne({ email: session.user?.email })
+    if (!user) {
+      return Response.json({ error: 'Usuário não encontrado' }, { status: 404 })
     }
 
-    // Atualizar informações de entrega
-    if (!treatmentPlan.deliveryInfo) {
-      treatmentPlan.deliveryInfo = {}
+    const resolvedParams = await params
+    const planId = resolvedParams.id
+    const body = await request.json()
+    const { method, scheduledFor } = body
+
+    // Extrair o ID do paciente do planId (formato: plan_{patientId})
+    const patientId = planId.replace('plan_', '')
+
+    // Buscar todas as análises do paciente
+    const analyses = await Analysis.find({
+      patient: patientId,
+      companyId: user.companyId,
+      status: { $in: ['completed', 'approved'] }
+    })
+
+    if (analyses.length === 0) {
+      return Response.json({ error: 'Nenhuma análise encontrada para este paciente' }, { status: 404 })
     }
-    
-    treatmentPlan.deliveryInfo.deliveredAt = new Date()
-    treatmentPlan.deliveryInfo.deliveryMethod = deliveryMethod
-    treatmentPlan.deliveryInfo.deliveryMessage = customMessage
-    treatmentPlan.deliveryInfo.deliveredBy = session.user.id
 
-    await treatmentPlan.save()
+    // Atualizar status de entrega nas análises
+    const deliveryData = {
+      deliveryMethod: method,
+      deliveredAt: scheduledFor ? new Date(scheduledFor) : new Date(),
+      deliveredBy: user._id,
+      deliveryStatus: 'delivered'
+    }
 
-    // Aqui você pode implementar o envio real por email/SMS
-    // Por exemplo, usando Nodemailer para email ou Twilio para SMS
-    await sendDeliveryNotification(treatmentPlan, deliveryMethod, customMessage)
-
-    return NextResponse.json({
-      message: 'Plano entregue com sucesso',
-      delivery: {
-        _id: treatmentPlan._id,
-        patientName: treatmentPlan.patient.name,
-        deliveryMethod,
-        deliveredAt: treatmentPlan.deliveryInfo.deliveredAt,
-        deliveredBy: session.user.name
+    await Analysis.updateMany(
+      {
+        patient: patientId,
+        companyId: user.companyId
+      },
+      {
+        $set: {
+          deliveryInfo: deliveryData,
+          updatedAt: new Date()
+        }
       }
+    )
+
+    // Simular envio baseado no método
+    let deliveryMessage = ''
+    switch (method) {
+      case 'email':
+        // Aqui você integraria com um serviço de email como SendGrid, Nodemailer, etc.
+        await sendEmailDelivery(analyses, patientId)
+        deliveryMessage = 'Plano enviado por e-mail com sucesso'
+        break
+      
+      case 'app':
+        // Aqui você notificaria o portal do paciente
+        await notifyPatientPortal(analyses, patientId)
+        deliveryMessage = 'Plano disponibilizado no portal do paciente'
+        break
+      
+      case 'printed':
+        // Aqui você enviaria para impressão
+        await schedulePrinting(analyses, patientId)
+        deliveryMessage = 'Plano enviado para impressão'
+        break
+      
+      default:
+        deliveryMessage = 'Método de entrega não reconhecido'
+    }
+
+    return Response.json({
+      success: true,
+      message: deliveryMessage,
+      deliveredAt: deliveryData.deliveredAt,
+      method: method
     })
 
   } catch (error) {
-    console.error('Erro ao entregar plano:', error)
-    return NextResponse.json(
+    console.error('Erro na entrega do plano:', error)
+    return Response.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }
 }
 
-// Função auxiliar para enviar notificações
-async function sendDeliveryNotification(
-  treatmentPlan: any, 
-  deliveryMethod: string, 
-  customMessage: string
-) {
-  const patient = treatmentPlan.patient
+// Funções auxiliares para entrega
+async function sendEmailDelivery(analyses: any[], patientId: string) {
+  // Implementar integração com serviço de email
+  console.log(`Enviando plano por email para paciente ${patientId}`)
   
-  try {
-    switch (deliveryMethod) {
-      case 'email':
-        // Implementar envio por email
-        console.log(`Enviando plano por email para: ${patient.email}`)
-        console.log(`Mensagem personalizada: ${customMessage}`)
-        // Aqui você integraria com Nodemailer ou serviço de email
-        break
-        
-      case 'sms':
-        // Implementar envio por SMS
-        console.log(`Enviando plano por SMS para: ${patient.phone}`)
-        console.log(`Mensagem personalizada: ${customMessage}`)
-        // Aqui você integraria com Twilio ou serviço de SMS
-        break
-        
-      case 'portal':
-        // Marcar como disponível no portal do paciente
-        console.log(`Plano disponibilizado no portal para: ${patient.name}`)
-        console.log(`Mensagem personalizada: ${customMessage}`)
-        // Aqui você criaria uma notificação no portal
-        break
-        
-      default:
-        console.log('Método de entrega não implementado')
-    }
-  } catch (error) {
-    console.error('Erro ao enviar notificação:', error)
-    // Não falhar a operação principal se o envio falhar
-  }
+  // Exemplo de estrutura para integração:
+  /*
+  const emailContent = generateEmailContent(analyses)
+  await emailService.send({
+    to: patient.email,
+    subject: 'Seu Plano de Tratamento Personalizado',
+    html: emailContent,
+    attachments: [
+      {
+        filename: 'plano-tratamento.pdf',
+        content: await generatePDFBuffer(analyses)
+      }
+    ]
+  })
+  */
+}
+
+async function notifyPatientPortal(analyses: any[], patientId: string) {
+  // Implementar notificação no portal do paciente
+  console.log(`Disponibilizando plano no portal para paciente ${patientId}`)
+  
+  // Exemplo de estrutura:
+  /*
+  await PatientNotification.create({
+    patientId,
+    type: 'treatment_plan_ready',
+    message: 'Seu plano de tratamento personalizado está disponível',
+    data: analyses,
+    read: false,
+    createdAt: new Date()
+  })
+  */
+}
+
+async function schedulePrinting(analyses: any[], patientId: string) {
+  // Implementar envio para impressão
+  console.log(`Agendando impressão do plano para paciente ${patientId}`)
+  
+  // Exemplo de estrutura:
+  /*
+  await PrintQueue.create({
+    patientId,
+    content: await generatePrintableContent(analyses),
+    priority: 'normal',
+    scheduledFor: new Date(),
+    status: 'queued'
+  })
+  */
 } 

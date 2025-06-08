@@ -4,8 +4,16 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Clock, Calendar, Plus, Trash2, Save, Play, AlertCircle } from 'lucide-react';
-import DashboardLayout from '@/components/DashboardLayout';
+import { 
+  Calendar, Clock, Plus, ArrowLeft, AlertCircle, Trash2, Play, Save
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
 
 interface Patient {
   _id: string;
@@ -66,7 +74,7 @@ interface ChronologyData {
 }
 
 export default function ChronologyAnalysisPage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -83,7 +91,19 @@ export default function ChronologyAnalysisPage() {
     treatmentHistory: []
   });
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{
+    timeline: Array<{
+      date: string;
+      event: string;
+      category: string;
+      impact: string;
+    }>;
+    patterns: Array<{
+      pattern: string;
+      significance: string;
+    }>;
+    recommendations: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (status === 'unauthenticated') {

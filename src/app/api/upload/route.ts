@@ -63,8 +63,9 @@ export async function POST(request: NextRequest) {
 
       // Salvar metadados no banco
       const document = new Document({
-        company: session.user.company,
+        companyId: session.user.company,
         uploadedBy: session.user.id,
+        name: title || file.name,
         filename: uploadResult.key.split('/').pop(),
         originalName: file.name,
         mimeType: file.type,
@@ -139,7 +140,7 @@ export async function GET(request: NextRequest) {
 
     // Construir filtros
     const filters: any = {
-      company: session.user.company,
+      companyId: session.user.company,
       isActive: true
     }
 

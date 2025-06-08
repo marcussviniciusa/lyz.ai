@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import Company from '@/models/Company'
-import connectDB from '@/lib/db'
+import dbConnect from '@/lib/db'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    await connectDB()
+    await dbConnect()
     
     const company = await Company.findOne({ 
       $or: [
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Formato inválido de provedores' }, { status: 400 })
     }
 
-    await connectDB()
+    await dbConnect()
     
     const company = await Company.findOne({ 
       $or: [

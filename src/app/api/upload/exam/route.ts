@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const patientId = url.searchParams.get('patientId')
 
-    let query: any = { companyId: user.company }
+    const query: any = { companyId: user.company }
     if (patientId) {
       query.patientId = patientId
     }

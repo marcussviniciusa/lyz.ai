@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import dbConnect from '@/lib/db';
 import { createAnalysisService } from '@/lib/analysis-service';
-import connectDB from '@/lib/db';
 import User from '@/models/User';
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
+    await dbConnect();
 
     // Verificar autenticação
     const session = await getServerSession(authOptions);

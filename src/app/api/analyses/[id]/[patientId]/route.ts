@@ -1,67 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { createAnalysisService } from '@/lib/analysis-service';
-import connectDB from '@/lib/db';
-import User from '@/models/User';
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import dbConnect from '@/lib/db'
+import Analysis from '@/models/Analysis'
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { patientId: string } }
+  request: Request,
+  { params }: { params: Promise<{ id: string; patientId: string }> }
 ) {
   try {
-    await connectDB();
-
-    // Verificar autenticação
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Não autenticado' },
-        { status: 401 }
-      );
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return Response.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Buscar usuário
-    const user = await User.findOne({ email: session.user.email });
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Usuário não encontrado' },
-        { status: 404 }
-      );
+    await dbConnect()
+
+    const resolvedParams = await params
+    const analysis = await Analysis.findById(resolvedParams.id)
+      .populate('patient', 'name email')
+      .populate('professional', 'name email')
+
+    if (!analysis) {
+      return Response.json({ error: 'Análise não encontrada' }, { status: 404 })
     }
 
-    const { patientId } = params;
-
-    if (!patientId) {
-      return NextResponse.json(
-        { error: 'ID da paciente é obrigatório' },
-        { status: 400 }
-      );
-    }
-
-    // Criar serviço de análise
-    const analysisService = createAnalysisService(
-      user.companyId.toString(),
-      user._id.toString(),
-      patientId
-    );
-
-    // Buscar análises da paciente
-    const analyses = await analysisService.getPatientAnalyses();
-
-    return NextResponse.json({
+    return Response.json({
       success: true,
-      data: analyses
-    });
+      analysis
+    })
 
   } catch (error) {
-    console.error('Erro ao buscar análises:', error);
-    return NextResponse.json(
-      { 
-        error: 'Erro interno do servidor',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
-      },
+    console.error('Erro ao buscar análise:', error)
+    return Response.json(
+      { error: 'Erro interno do servidor' },
       { status: 500 }
-    );
+    )
   }
 } 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, use } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -69,8 +69,8 @@ type TabType = 'overview' | 'medical' | 'medications' | 'lifestyle' | 'goals' | 
 
 
 
-export default function PatientDetailPage() {
-  const params = useParams()
+export default function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const router = useRouter()
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
@@ -83,9 +83,9 @@ export default function PatientDetailPage() {
     const fetchPatient = async () => {
       try {
         setLoading(true)
-        console.log('Buscando paciente com ID:', params.id)
+        console.log('Buscando paciente com ID:', resolvedParams.id)
         
-        const response = await fetch(`/api/patients/${params.id}`)
+        const response = await fetch(`/api/patients/${resolvedParams.id}`)
         console.log('Response status:', response.status)
         console.log('Response headers:', Object.fromEntries(response.headers.entries()))
         
@@ -121,10 +121,10 @@ export default function PatientDetailPage() {
       }
     }
 
-    if (params.id) {
+    if (resolvedParams.id) {
       fetchPatient()
     }
-  }, [params.id, router])
+  }, [resolvedParams.id, router])
 
   const getQualityLabel = (quality: string) => {
     const labels = {

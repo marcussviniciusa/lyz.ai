@@ -1,18 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Activity, Shield, Zap, Recycle, Heart, Brain, Users, Save, Play } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
 import DashboardLayout from '@/components/DashboardLayout';
 
 interface Patient {
   _id: string;
   name: string;
   age: number;
-  mainSymptoms: { symptom: string; priority: number }[];
-  createdAt: Date;
+  mainSymptoms: string[];
+}
+
+interface SystemEvaluation {
+  name: string;
+  score: number;
+  symptoms: string[];
+  notes: string;
+}
+
+interface IFMAssessment {
+  systems: SystemEvaluation[];
+  interconnections: string[];
+  rootCauses: string[];
+  therapeuticPriorities: string[];
 }
 
 interface IFMData {
@@ -80,7 +99,17 @@ export default function IFMAnalysisPage() {
   const [selectedPatient, setSelectedPatient] = useState('');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<{
+    analysis: string;
+    systems: Array<{
+      name: string;
+      score: number;
+      symptoms: string[];
+      recommendations: string[];
+    }>;
+    interconnections: string[];
+    priorities: string[];
+  } | null>(null);
   const [existingAnalyses, setExistingAnalyses] = useState([]);
 
   useEffect(() => {
@@ -113,7 +142,7 @@ export default function IFMAnalysisPage() {
     }
   };
 
-  const loadExistingAnalyses = async () => {
+  const loadExistingAnalyses = useCallback(async () => {
     try {
       const response = await fetch(`/api/analyses/${selectedPatient}`);
       if (response.ok) {
@@ -126,7 +155,7 @@ export default function IFMAnalysisPage() {
     } catch (error) {
       console.error('Erro ao carregar análises:', error);
     }
-  };
+  }, [selectedPatient]);
 
   const handleAnalyze = async () => {
     if (!selectedPatient) {

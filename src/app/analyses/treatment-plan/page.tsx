@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Target, Calendar, Utensils, Pill, Activity, Heart, Book, CheckCircle2, Save, Play } from 'lucide-react';
 import DashboardLayout from '@/components/DashboardLayout';
 
 interface Patient {
@@ -34,7 +33,6 @@ interface Preferences {
 export default function TreatmentPlanPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [step, setStep] = useState(1);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [treatmentGoals, setTreatmentGoals] = useState<TreatmentGoals>({
@@ -51,8 +49,6 @@ export default function TreatmentPlanPage() {
     communicationStyle: '',
     followUpFrequency: ''
   });
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
   const [availableAnalyses, setAvailableAnalyses] = useState({
     laboratory: false,
     tcm: false,

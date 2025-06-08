@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState, use } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
 interface Analysis {
@@ -21,8 +21,8 @@ interface Patient {
   name: string
 }
 
-export default function PatientAnalysesPage() {
-  const params = useParams()
+export default function PatientAnalysesPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const router = useRouter()
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [patient, setPatient] = useState<Patient | null>(null)
@@ -35,7 +35,7 @@ export default function PatientAnalysesPage() {
         setLoading(true)
         
         // Buscar dados do paciente
-        const patientResponse = await fetch(`/api/patients/${params.id}`)
+        const patientResponse = await fetch(`/api/patients/${resolvedParams.id}`)
         if (!patientResponse.ok) {
           throw new Error('Erro ao carregar dados do paciente')
         }
@@ -43,7 +43,7 @@ export default function PatientAnalysesPage() {
         setPatient(patientData)
 
         // Buscar análises do paciente
-        const analysesResponse = await fetch(`/api/analyses?patientId=${params.id}`)
+        const analysesResponse = await fetch(`/api/analyses?patientId=${resolvedParams.id}`)
         if (!analysesResponse.ok) {
           throw new Error('Erro ao carregar análises')
         }
@@ -57,10 +57,10 @@ export default function PatientAnalysesPage() {
       }
     }
 
-    if (params.id) {
+    if (resolvedParams.id) {
       fetchData()
     }
-  }, [params.id])
+  }, [resolvedParams.id])
 
   const getAnalysisTypeLabel = (type: string) => {
     const labels = {
@@ -142,7 +142,7 @@ export default function PatientAnalysesPage() {
           <nav className="text-sm text-gray-600 mb-2">
             <Link href="/patients" className="hover:text-gray-900">Pacientes</Link>
             <span className="mx-2">/</span>
-            <Link href={`/patients/${params.id}`} className="hover:text-gray-900">
+            <Link href={`/patients/${resolvedParams.id}`} className="hover:text-gray-900">
               {patient?.name}
             </Link>
             <span className="mx-2">/</span>
@@ -157,13 +157,13 @@ export default function PatientAnalysesPage() {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => router.push(`/patients/${params.id}`)}
+            onClick={() => router.push(`/patients/${resolvedParams.id}`)}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
           >
             Voltar ao Paciente
           </button>
           <button
-            onClick={() => router.push(`/patients/${params.id}/analyses/new`)}
+            onClick={() => router.push(`/patients/${resolvedParams.id}/analyses/new`)}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
           >
             Nova Análise
@@ -284,7 +284,7 @@ export default function PatientAnalysesPage() {
             Este paciente ainda não possui análises registradas.
           </p>
           <button
-            onClick={() => router.push(`/patients/${params.id}/analyses/new`)}
+            onClick={() => router.push(`/patients/${resolvedParams.id}/analyses/new`)}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
           >
             Criar Primeira Análise

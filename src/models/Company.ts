@@ -70,7 +70,6 @@ const CompanySchema = new Schema<ICompany>({
   cnpj: {
     type: String,
     trim: true,
-    unique: true,
     sparse: true,
     match: [/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/, 'CNPJ inválido']
   },
