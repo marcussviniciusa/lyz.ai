@@ -21,6 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" className="h-full">
+      <head>
+        <meta httpEquiv="Content-Language" content="pt-BR" />
+      </head>
       <body className="h-full bg-gray-50">
         <Providers>
           <div className="min-h-full">

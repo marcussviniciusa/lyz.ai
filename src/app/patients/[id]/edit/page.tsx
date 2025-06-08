@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -59,9 +59,11 @@ interface PatientFormData {
   notes: string
 }
 
-export default function NewPatientPage() {
+export default function EditPatientPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params)
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -102,6 +104,73 @@ export default function NewPatientPage() {
     },
     notes: ''
   })
+
+  // Carregar dados do paciente
+  useEffect(() => {
+    const fetchPatient = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch(`/api/patients/${resolvedParams.id}`)
+        
+        if (!response.ok) {
+          throw new Error('Paciente não encontrado')
+        }
+
+        const patient = await response.json()
+        
+        // Mapear dados do paciente para o formulário
+        setFormData({
+          name: patient.name || '',
+          birthDate: patient.birthDate?.split('T')[0] || '',
+          height: patient.height || 0,
+          weight: patient.weight || 0,
+          menstrualHistory: {
+            menarche: patient.menstrualHistory?.menarche || 0,
+            cycleLength: patient.menstrualHistory?.cycleLength || 0,
+            menstruationLength: patient.menstrualHistory?.menstruationLength || 0,
+            lastMenstruation: patient.menstrualHistory?.lastMenstruation?.split('T')[0] || '',
+            menopausalStatus: patient.menstrualHistory?.menopausalStatus || 'pre',
+            contraceptiveUse: patient.menstrualHistory?.contraceptiveUse || ''
+          },
+          mainSymptoms: patient.mainSymptoms || [],
+          medicalHistory: {
+            allergies: Array.isArray(patient.medicalHistory?.allergies) 
+              ? patient.medicalHistory.allergies.join(', ') 
+              : patient.medicalHistory?.allergies || '',
+            medications: patient.medications || [],
+            chronicConditions: patient.medicalHistory?.personalHistory || '',
+            surgeries: Array.isArray(patient.medicalHistory?.previousTreatments)
+              ? patient.medicalHistory.previousTreatments.join('\n')
+              : '',
+            familyHistory: patient.medicalHistory?.familyHistory || ''
+          },
+          lifestyle: {
+            sleepQuality: patient.lifestyle?.sleepQuality || 'regular',
+            sleepHours: patient.lifestyle?.sleepHours || 8,
+            exerciseFrequency: patient.lifestyle?.exerciseFrequency || 'regular',
+            exerciseType: patient.lifestyle?.exerciseType || '',
+            stressLevel: patient.lifestyle?.stressLevel || 'moderate',
+            nutritionQuality: patient.lifestyle?.nutritionQuality || 'regular',
+            relationshipQuality: patient.lifestyle?.relationshipQuality || 'regular'
+          },
+          treatmentGoals: {
+            goals: patient.treatmentGoals?.goals || [],
+            expectations: patient.treatmentGoals?.expectations || '',
+            additionalNotes: patient.treatmentGoals?.additionalNotes || ''
+          },
+          notes: ''
+        })
+      } catch (err: any) {
+        setError(err.message || 'Erro ao carregar dados do paciente')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (resolvedParams.id) {
+      fetchPatient()
+    }
+  }, [resolvedParams.id])
 
   const addMedication = () => {
     setFormData(prev => ({
@@ -177,8 +246,6 @@ export default function NewPatientPage() {
     return null
   }
 
-
-
   const handleInputChange = (field: string, value: string) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.')
@@ -198,24 +265,6 @@ export default function NewPatientPage() {
           menstrualHistory: {
             ...prev.menstrualHistory,
             [child]: parseInt(value) || 0
-          }
-        }))
-      } else if (field === 'medicalHistory.medications') {
-        // Parse medications string to array
-        const medicationsArray = value.split('\n').filter(line => line.trim()).map(line => {
-          const parts = line.split(' - ')
-          return {
-            name: parts[0] || '',
-            dosage: parts[1] || '',
-            frequency: parts[2] || '',
-            type: 'medication' as const
-          }
-        })
-        setFormData(prev => ({
-          ...prev,
-          medicalHistory: {
-            ...prev.medicalHistory,
-            medications: medicationsArray
           }
         }))
       } else if (field === 'treatmentGoals.goals') {
@@ -255,7 +304,7 @@ export default function NewPatientPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setLoading(true)
+    setSaving(true)
     setError('')
     setSuccess('')
 
@@ -307,8 +356,8 @@ export default function NewPatientPage() {
         }
       }
 
-      const response = await fetch('/api/patients', {
-        method: 'POST',
+      const response = await fetch(`/api/patients/${resolvedParams.id}`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
@@ -318,21 +367,34 @@ export default function NewPatientPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Erro ao cadastrar paciente')
+        throw new Error(data.error || 'Erro ao atualizar paciente')
       }
 
-      setSuccess('Paciente cadastrado com sucesso!')
+      setSuccess('Paciente atualizado com sucesso!')
       
       // Redirecionar após 2 segundos
       setTimeout(() => {
-        router.push(`/patients/${data.patient._id}`)
+        router.push(`/patients/${resolvedParams.id}`)
       }, 2000)
 
     } catch (err: any) {
       setError(err.message || 'Erro interno do servidor')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+          <div className="h-32 bg-gray-200 rounded mb-4"></div>
+          <div className="h-24 bg-gray-200 rounded mb-4"></div>
+          <div className="h-16 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -341,16 +403,16 @@ export default function NewPatientPage() {
         <div className="mb-6">
           <Button
             variant="ghost"
-            onClick={() => router.back()}
+            onClick={() => router.push(`/patients/${resolvedParams.id}`)}
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Voltar
+            Voltar aos Detalhes
           </Button>
           
-          <h1 className="text-3xl font-bold">Novo Paciente</h1>
+          <h1 className="text-3xl font-bold">Editar Paciente</h1>
           <p className="text-gray-600 mt-2">
-            Preencha os dados do novo paciente
+            Atualize os dados do paciente
           </p>
         </div>
 
@@ -641,12 +703,13 @@ export default function NewPatientPage() {
                     size="sm"
                     onClick={addMedication}
                   >
-                    + Adicionar Medicamento
+                    <Plus className="w-4 h-4 mr-2" />
+                    Adicionar Medicamento
                   </Button>
                 </div>
                 
                 {formData.medicalHistory.medications.map((medication, index) => (
-                  <div key={index} className="border rounded-lg p-4 space-y-3">
+                  <div key={index} className="border rounded-lg p-4 space-y-3 mb-4">
                     <div className="flex justify-between items-center">
                       <h4 className="font-medium">Medicamento {index + 1}</h4>
                       <Button
@@ -656,7 +719,7 @@ export default function NewPatientPage() {
                         onClick={() => removeMedication(index)}
                         className="text-red-600"
                       >
-                        Remover
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                     
@@ -690,14 +753,18 @@ export default function NewPatientPage() {
                       
                       <div>
                         <Label>Tipo</Label>
-                        <select
+                        <Select
                           value={medication.type}
-                          onChange={(e) => updateMedication(index, 'type', e.target.value)}
-                          className="w-full p-2 border rounded-md"
+                          onValueChange={(value) => updateMedication(index, 'type', value)}
                         >
-                          <option value="medication">Medicamento</option>
-                          <option value="supplement">Suplemento</option>
-                        </select>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="medication">Medicamento</SelectItem>
+                            <SelectItem value="supplement">Suplemento</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
@@ -775,16 +842,20 @@ export default function NewPatientPage() {
               
               <div>
                 <Label htmlFor="exerciseFrequency">Frequência de Exercício</Label>
-                <select
-                  id="exerciseFrequency"
+                <Select
                   value={formData.lifestyle.exerciseFrequency}
-                  onChange={(e) => handleInputChange('lifestyle.exerciseFrequency', e.target.value)}
+                  onValueChange={(value) => handleInputChange('lifestyle.exerciseFrequency', value)}
                 >
-                  <option value="none">Nenhum</option>
-                  <option value="occasional">Ocasional</option>
-                  <option value="regular">Regular</option>
-                  <option value="daily">Diário</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum</SelectItem>
+                    <SelectItem value="occasional">Ocasional</SelectItem>
+                    <SelectItem value="regular">Regular</SelectItem>
+                    <SelectItem value="daily">Diário</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div>
@@ -799,41 +870,53 @@ export default function NewPatientPage() {
               
               <div>
                 <Label htmlFor="stressLevel">Nível de Estresse</Label>
-                <select
-                  id="stressLevel"
+                <Select
                   value={formData.lifestyle.stressLevel}
-                  onChange={(e) => handleInputChange('lifestyle.stressLevel', e.target.value)}
+                  onValueChange={(value) => handleInputChange('lifestyle.stressLevel', value)}
                 >
-                  <option value="low">Baixo</option>
-                  <option value="moderate">Moderado</option>
-                  <option value="high">Alto</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Baixo</SelectItem>
+                    <SelectItem value="moderate">Moderado</SelectItem>
+                    <SelectItem value="high">Alto</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div>
                 <Label htmlFor="nutritionQuality">Qualidade da Nutrição</Label>
-                <select
-                  id="nutritionQuality"
+                <Select
                   value={formData.lifestyle.nutritionQuality}
-                  onChange={(e) => handleInputChange('lifestyle.nutritionQuality', e.target.value)}
+                  onValueChange={(value) => handleInputChange('lifestyle.nutritionQuality', value)}
                 >
-                  <option value="good">Boa</option>
-                  <option value="regular">Regular</option>
-                  <option value="poor">Ruim</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="good">Boa</SelectItem>
+                    <SelectItem value="regular">Regular</SelectItem>
+                    <SelectItem value="poor">Ruim</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div>
                 <Label htmlFor="relationshipQuality">Qualidade da Relação</Label>
-                <select
-                  id="relationshipQuality"
+                <Select
                   value={formData.lifestyle.relationshipQuality}
-                  onChange={(e) => handleInputChange('lifestyle.relationshipQuality', e.target.value)}
+                  onValueChange={(value) => handleInputChange('lifestyle.relationshipQuality', value)}
                 >
-                  <option value="good">Boa</option>
-                  <option value="regular">Regular</option>
-                  <option value="poor">Ruim</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="good">Boa</SelectItem>
+                    <SelectItem value="regular">Regular</SelectItem>
+                    <SelectItem value="poor">Ruim</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
@@ -876,37 +959,19 @@ export default function NewPatientPage() {
             </CardContent>
           </Card>
 
-          {/* Observações */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Observações Gerais</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div>
-                <Label htmlFor="notes">Notas</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => handleInputChange('notes', e.target.value)}
-                  placeholder="Observações adicionais..."
-                />
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Botões */}
           <div className="flex justify-end space-x-4">
             <Button
               type="button"
               variant="outline"
-              onClick={() => router.back()}
-              disabled={loading}
+              onClick={() => router.push(`/patients/${resolvedParams.id}`)}
+              disabled={saving}
             >
               Cancelar
             </Button>
             
-            <Button type="submit" disabled={loading}>
-              {loading ? (
+            <Button type="submit" disabled={saving}>
+              {saving ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Salvando...
@@ -914,7 +979,7 @@ export default function NewPatientPage() {
               ) : (
                 <>
                   <Save className="w-4 h-4 mr-2" />
-                  Salvar Paciente
+                  Salvar Alterações
                 </>
               )}
             </Button>
@@ -923,4 +988,4 @@ export default function NewPatientPage() {
       </div>
     </div>
   )
-}
+} 

@@ -3,6 +3,7 @@
 import { useEffect, useState, use } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { formatDateBR, calculateDaysSince } from '@/utils/dateUtils'
 
 interface Analysis {
   _id: string
@@ -147,6 +148,8 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     if (['poor', 'high', 'none'].includes(quality)) return 'bg-red-100 text-red-800'
     return 'bg-gray-100 text-gray-800'
   }
+
+
 
   const tabs = [
     { id: 'overview', label: 'Visão Geral', icon: '👤' },
@@ -302,32 +305,67 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
 
               {/* Menstrual History */}
               {patient.menstrualHistory && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="text-lg font-medium text-gray-900 mb-3">História Menstrual</h3>
+                <div className="bg-pink-50 rounded-lg p-4 border-l-4 border-pink-400">
+                  <h3 className="text-lg font-medium text-gray-900 mb-3">🌸 História Menstrual</h3>
                   <dl className="space-y-2">
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">Menarca:</dt>
-                      <dd className="text-sm text-gray-900">{patient.menstrualHistory.menarche} anos</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">Ciclo:</dt>
-                      <dd className="text-sm text-gray-900">{patient.menstrualHistory.cycleLength} dias</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">Duração:</dt>
-                      <dd className="text-sm text-gray-900">{patient.menstrualHistory.menstruationLength} dias</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm font-medium text-gray-600">Última menstruação:</dt>
-                      <dd className="text-sm text-gray-900">
-                        {new Date(patient.menstrualHistory.lastMenstruation).toLocaleDateString('pt-BR')}
-                      </dd>
-                    </div>
+                    {patient.menstrualHistory.menarche > 0 && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-600">Menarca:</dt>
+                        <dd className="text-sm text-gray-900">{patient.menstrualHistory.menarche} anos</dd>
+                      </div>
+                    )}
+                    {patient.menstrualHistory.cycleLength > 0 && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-600">Ciclo:</dt>
+                        <dd className="text-sm text-gray-900">
+                          {patient.menstrualHistory.cycleLength} dias
+                          <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                            patient.menstrualHistory.cycleLength >= 21 && patient.menstrualHistory.cycleLength <= 35 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {patient.menstrualHistory.cycleLength >= 21 && patient.menstrualHistory.cycleLength <= 35 ? 'Normal' : 'Irregular'}
+                          </span>
+                        </dd>
+                      </div>
+                    )}
+                    {patient.menstrualHistory.menstruationLength > 0 && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-600">Duração:</dt>
+                        <dd className="text-sm text-gray-900">
+                          {patient.menstrualHistory.menstruationLength} dias
+                          <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                            patient.menstrualHistory.menstruationLength >= 3 && patient.menstrualHistory.menstruationLength <= 7 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {patient.menstrualHistory.menstruationLength >= 3 && patient.menstrualHistory.menstruationLength <= 7 ? 'Normal' : 'Atípica'}
+                          </span>
+                        </dd>
+                      </div>
+                    )}
+                    {patient.menstrualHistory.lastMenstruation && (
+                      <div>
+                        <dt className="text-sm font-medium text-gray-600">Última menstruação:</dt>
+                        <dd className="text-sm text-gray-900">
+                          {formatDateBR(patient.menstrualHistory.lastMenstruation)}
+                          <span className="ml-2 text-xs text-gray-500">
+                            ({calculateDaysSince(patient.menstrualHistory.lastMenstruation)} dias atrás)
+                          </span>
+                        </dd>
+                      </div>
+                    )}
                     <div>
                       <dt className="text-sm font-medium text-gray-600">Status:</dt>
-                      <dd className="text-sm text-gray-900">
-                        {patient.menstrualHistory.menopausalStatus === 'pre' ? 'Pré-menopausa' :
-                         patient.menstrualHistory.menopausalStatus === 'peri' ? 'Perimenopausa' : 'Pós-menopausa'}
+                      <dd>
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          patient.menstrualHistory.menopausalStatus === 'pre' ? 'bg-green-100 text-green-800' :
+                          patient.menstrualHistory.menopausalStatus === 'peri' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {patient.menstrualHistory.menopausalStatus === 'pre' ? 'Pré-menopausa' :
+                           patient.menstrualHistory.menopausalStatus === 'peri' ? 'Perimenopausa' : 'Pós-menopausa'}
+                        </span>
                       </dd>
                     </div>
                     {patient.menstrualHistory.contraceptiveUse && (
@@ -701,8 +739,8 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Footer */}
       <div className="mt-8 text-sm text-gray-500 text-center">
-        Criado em: {new Date(patient.createdAt).toLocaleDateString('pt-BR')} | 
-        Atualizado em: {new Date(patient.updatedAt).toLocaleDateString('pt-BR')}
+        Criado em: {formatDateBR(patient.createdAt)} | 
+        Atualizado em: {formatDateBR(patient.updatedAt)}
       </div>
     </div>
   )
