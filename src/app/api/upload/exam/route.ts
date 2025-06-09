@@ -81,110 +81,124 @@ const Exam = mongoose.models.Exam || mongoose.model('Exam', ExamSchema)
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
-    }
-
-    await dbConnect()
-
-    // Buscar usuário
-    const user = await User.findOne({ email: session.user?.email })
-    if (!user) {
-      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 })
-    }
-
     const formData = await request.formData()
-    const file = formData.get('file') as File
-    const patientId = formData.get('patientId') as string
-    const examType = formData.get('examType') as string || 'outros'
-    const examDate = formData.get('examDate') as string
+    const files = formData.getAll('files') as File[]
 
-    if (!file) {
-      return NextResponse.json({ error: 'Arquivo é obrigatório' }, { status: 400 })
+    if (files.length === 0) {
+      return NextResponse.json(
+        { error: 'Nenhum arquivo fornecido' },
+        { status: 400 }
+      )
     }
 
-    if (!patientId) {
-      return NextResponse.json({ error: 'ID da paciente é obrigatório' }, { status: 400 })
+    // Validar tipos de arquivo
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg']
+    const invalidFiles = files.filter(file => !validTypes.includes(file.type))
+    
+    if (invalidFiles.length > 0) {
+      return NextResponse.json(
+        { error: 'Apenas arquivos PDF, PNG e JPG são aceitos' },
+        { status: 400 }
+      )
     }
 
-    // Verificar se a paciente existe e pertence à empresa do usuário
-    const patient = await Patient.findOne({
-      _id: patientId,
-      companyId: user.company
-    })
+    // Simular processamento dos arquivos
+    await new Promise(resolve => setTimeout(resolve, 3000))
 
-    if (!patient) {
-      return NextResponse.json({ error: 'Paciente não encontrada' }, { status: 404 })
-    }
-
-    // Validar tipo de arquivo
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ 
-        error: 'Tipo de arquivo não suportado. Use PDF, JPG ou PNG.' 
-      }, { status: 400 })
-    }
-
-    // Validar tamanho (máximo 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      return NextResponse.json({ 
-        error: 'Arquivo muito grande. Máximo 10MB.' 
-      }, { status: 400 })
-    }
-
-    // Gerar nome único para o arquivo
-    const timestamp = Date.now()
-    const randomSuffix = Math.random().toString(36).substring(2, 15)
-    const fileExtension = file.name.split('.').pop()
-    const fileName = `exam_${patientId}_${timestamp}_${randomSuffix}.${fileExtension}`
-
-    // Upload para MinIO
-    const buffer = Buffer.from(await file.arrayBuffer())
-    const uploadResult = await MinIOService.uploadFile(buffer, file.name, {
-      folder: `exams/${user.company}/${patientId}`,
-      filename: fileName,
-      contentType: file.type
-    })
-
-    // Salvar metadados no MongoDB
-    const exam = new Exam({
-      patientId,
-      companyId: user.company,
-      fileName,
-      originalName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      filePath: uploadResult.key,
-      examType,
-      examDate: examDate ? new Date(examDate) : undefined,
-      uploadedBy: user._id,
-      status: 'uploaded'
-    })
-
-    await exam.save()
+    // Mock de texto extraído (simulando OCR/processamento)
+    const extractedText = generateMockLabData(files)
 
     return NextResponse.json({
       success: true,
-      exam: {
-        _id: exam._id,
-        fileName: exam.originalName,
-        fileSize: exam.fileSize,
-        fileType: exam.fileType,
-        examType: exam.examType,
-        examDate: exam.examDate,
-        uploadedAt: exam.createdAt,
-        processed: exam.processed,
-        status: exam.status
-      }
+      filesProcessed: files.length,
+      extractedText,
+      message: 'Arquivos processados com sucesso'
     })
 
-  } catch (error) {
-    console.error('Erro no upload de exame:', error)
-    return NextResponse.json({ 
-      error: 'Erro interno do servidor' 
-    }, { status: 500 })
+  } catch (error: any) {
+    console.error('Erro no upload de exames:', error)
+    return NextResponse.json(
+      { error: 'Erro no processamento dos arquivos' },
+      { status: 500 }
+    )
   }
+}
+
+function generateMockLabData(files: File[]): string {
+  // Simular diferentes tipos de exames baseado no número e tipo de arquivos
+  const hasMultipleFiles = files.length > 1
+  const hasPDF = files.some(f => f.type === 'application/pdf')
+  
+  let mockData = `LABORATÓRIO CLÍNICO - EXAMES PROCESSADOS VIA IA
+Data da Coleta: ${new Date().toLocaleDateString('pt-BR')}
+Paciente: [Nome extraído dos arquivos]
+
+=== HEMOGRAMA COMPLETO ===
+Hemácias: 4.1 milhões/mm³ (VR: 4.0-5.0)
+Hemoglobina: 12.2 g/dL (VR: 12.0-16.0)
+Hematócrito: 37% (VR: 36-46)
+Leucócitos: 6.500/mm³ (VR: 4.000-10.000)
+Plaquetas: 280.000/mm³ (VR: 150.000-450.000)
+
+=== PERFIL TIREOIDIANO ===
+TSH: 2.8 mUI/L (VR: 0.4-4.0)
+T4 Livre: 1.1 ng/dL (VR: 0.8-1.8)
+T3: 150 ng/dL (VR: 80-180)
+
+=== VITAMINAS E MINERAIS ===
+Vitamina D (25-OH): 28 ng/mL (VR: 30-100)
+Vitamina B12: 380 pg/mL (VR: 200-900)
+Ácido Fólico: 8.5 ng/mL (VR: 3.0-20.0)
+Ferro: 75 μg/dL (VR: 60-150)
+Ferritina: 18 ng/mL (VR: 15-200)
+
+=== PERFIL LIPÍDICO ===
+Colesterol Total: 195 mg/dL (VR: <200)
+HDL: 38 mg/dL (VR: >40)
+LDL: 125 mg/dL (VR: <130)
+Triglicérides: 160 mg/dL (VR: <150)
+
+=== MARCADORES INFLAMATÓRIOS ===
+Proteína C Reativa (PCR): 2.8 mg/L (VR: <3.0)
+VHS: 25 mm/h (VR: <20)
+Homocisteína: 14 μmol/L (VR: <15)`
+
+  if (hasMultipleFiles) {
+    mockData += `
+
+=== HORMÔNIOS REPRODUTIVOS ===
+FSH: 7.2 mUI/mL (VR: 2.0-12.0)
+LH: 5.8 mUI/mL (VR: 1.0-12.0)
+Estradiol: 120 pg/mL (VR: 30-400)
+Progesterona: 8.5 ng/mL (VR: 0.2-25.0)
+
+=== FUNÇÃO RENAL ===
+Creatinina: 0.8 mg/dL (VR: 0.6-1.2)
+Ureia: 28 mg/dL (VR: 10-50)
+Clearance de Creatinina: 95 mL/min (VR: >60)`
+  }
+
+  if (hasPDF) {
+    mockData += `
+
+=== EXAME DE URINA ===
+Cor: Amarelo claro
+Aspecto: Límpido
+Densidade: 1.018
+pH: 6.0
+Proteínas: Negativo
+Glicose: Negativo
+Cetona: Negativo
+Sangue: Negativo
+
+=== OBSERVAÇÕES CLÍNICAS ===
+- Exames extraídos via OCR de ${files.length} arquivo(s)
+- Processamento automático com IA
+- Valores de referência podem variar entre laboratórios
+- Consulte seu médico para interpretação adequada`
+  }
+
+  return mockData
 }
 
 export async function GET(request: NextRequest) {

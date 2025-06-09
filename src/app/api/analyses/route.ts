@@ -66,9 +66,9 @@ export async function GET(request: NextRequest) {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .populate('patientId', 'name')
-        .populate('createdBy', 'name email')
-        .populate('reviewedBy', 'name email'),
+        .populate('patient', 'name')
+        .populate('professional', 'name email')
+        .populate('company', 'name'),
       Analysis.countDocuments(query)
     ])
 
@@ -137,58 +137,62 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Criar ObjectId válido para createdBy
-    let createdBy: ObjectId;
+    // Criar ObjectId válido para professional
+    let professionalId: ObjectId;
     if (ObjectId.isValid(session.user.id)) {
-      createdBy = new ObjectId(session.user.id);
+      professionalId = new ObjectId(session.user.id);
     } else {
-      // Se o ID não for um ObjectId válido, criar um ObjectId baseado no ID do usuário
-      createdBy = new ObjectId();
+      // Se o ID não for um ObjectId válido, criar um ObjectId padrão temporário
+      professionalId = new ObjectId();
     }
 
-    // Criar ObjectId válido para companyId se necessário
+    // Criar ObjectId válido para company
     let companyId: ObjectId;
     if (session.user.role === 'superadmin') {
       companyId = patient.company;
     } else if (session.user.company && ObjectId.isValid(session.user.company)) {
       companyId = new ObjectId(session.user.company);
     } else {
+      // Criar um ObjectId padrão se não tiver company
       companyId = new ObjectId();
     }
 
     const analysisData = {
-      patientId: new ObjectId(body.patientId),
-      companyId,
+      patient: new ObjectId(body.patientId),
+      professional: professionalId,
+      company: companyId,
       type: body.type,
-      title: body.title,
-      description: body.description,
-      input: body.input || {},
-      output: body.output || {},
       status: 'pending',
-      createdBy,
-      aiMetadata: {
-        model: body.aiModel,
-        provider: body.aiProvider,
-        tokens: {
-          input: 0,
-          output: 0,
-          total: 0
-        },
-        cost: 0,
-        processingTime: 0
+      inputData: body.inputData || {},
+      result: {
+        rawOutput: ''
       },
-      createdAt: new Date(),
-      updatedAt: new Date()
+      aiMetadata: {
+        provider: 'openai', // Valor padrão
+        model: 'gpt-4o-mini', // Valor padrão
+        promptVersion: '1.0', // Valor padrão obrigatório
+        tokensUsed: 0,
+        processingTime: 0,
+        cost: 0
+      }
     }
 
     const analysis = new Analysis(analysisData)
     await analysis.save()
 
-    // Popular campos para retorno
-    await analysis.populate('patientId', 'name')
-    await analysis.populate('createdBy', 'name email')
+    // Retornar apenas dados essenciais sem populate para evitar erro BSON
+    const responseData = {
+      _id: analysis._id.toString(),
+      patient: analysis.patient.toString(),
+      professional: analysis.professional.toString(),
+      company: analysis.company.toString(),
+      type: analysis.type,
+      status: analysis.status,
+      createdAt: analysis.createdAt,
+      updatedAt: analysis.updatedAt
+    }
 
-    return NextResponse.json(analysis, { status: 201 })
+    return NextResponse.json(responseData, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar análise:', error)
     return NextResponse.json(

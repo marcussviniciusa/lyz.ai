@@ -7,9 +7,6 @@ import DashboardLayout from '@/components/DashboardLayout'
 
 interface SystemSettings {
   _id: string
-  aiProvider: 'openai' | 'anthropic' | 'gemini'
-  defaultModel: string
-  maxTokensPerAnalysis: number
   enableEmailNotifications: boolean
   enableSmsNotifications: boolean
   dataRetentionDays: number
@@ -29,9 +26,6 @@ interface SystemSettings {
 
 const defaultSettings: SystemSettings = {
   _id: '',
-  aiProvider: 'openai',
-  defaultModel: 'gpt-4',
-  maxTokensPerAnalysis: 8000,
   enableEmailNotifications: true,
   enableSmsNotifications: false,
   dataRetentionDays: 365,
@@ -121,7 +115,7 @@ export default function SettingsPage() {
     setSettings(prev => ({
       ...prev,
       [section]: {
-        ...prev[section as keyof SystemSettings],
+        ...(prev[section as keyof SystemSettings] as object),
         [key]: value
       }
     }))
@@ -129,7 +123,6 @@ export default function SettingsPage() {
 
   const tabs = [
     { id: 'general', name: 'Geral', icon: '⚙️' },
-    { id: 'ai', name: 'IA & Modelos', icon: '🤖' },
     { id: 'notifications', name: 'Notificações', icon: '🔔' },
     { id: 'security', name: 'Segurança', icon: '🔒' },
     { id: 'billing', name: 'Faturamento', icon: '💳' },
@@ -264,76 +257,7 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Tab: IA & Modelos */}
-            {activeTab === 'ai' && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Configurações de IA</h3>
-                  
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Provedor de IA
-                      </label>
-                      <select
-                        value={settings.aiProvider}
-                        onChange={(e) => updateSettings('aiProvider', e.target.value)}
-                        className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                      >
-                        <option value="openai">OpenAI</option>
-                        <option value="anthropic">Anthropic (Claude)</option>
-                        <option value="gemini">Google Gemini</option>
-                      </select>
-                    </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Modelo Padrão
-                      </label>
-                      <select
-                        value={settings.defaultModel}
-                        onChange={(e) => updateSettings('defaultModel', e.target.value)}
-                        className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                      >
-                        {settings.aiProvider === 'openai' && (
-                          <>
-                            <option value="gpt-4">GPT-4</option>
-                            <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                          </>
-                        )}
-                        {settings.aiProvider === 'anthropic' && (
-                          <>
-                            <option value="claude-3-opus">Claude 3 Opus</option>
-                            <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-                            <option value="claude-3-haiku">Claude 3 Haiku</option>
-                          </>
-                        )}
-                        {settings.aiProvider === 'gemini' && (
-                          <>
-                            <option value="gemini-pro">Gemini Pro</option>
-                            <option value="gemini-pro-vision">Gemini Pro Vision</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Máximo de Tokens por Análise
-                      </label>
-                      <input
-                        type="number"
-                        value={settings.maxTokensPerAnalysis}
-                        onChange={(e) => updateSettings('maxTokensPerAnalysis', parseInt(e.target.value))}
-                        className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                      />
-                      <p className="mt-1 text-xs text-gray-500">Limite de tokens para análises de IA</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Tab: Notificações */}
             {activeTab === 'notifications' && (

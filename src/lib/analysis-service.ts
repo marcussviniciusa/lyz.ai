@@ -41,29 +41,23 @@ export class AnalysisService {
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
 
-      // Gerar contexto RAG
-      const ragContext = await this.ragService.generateContext(
-        `exames laboratoriais ${patient.mainSymptoms?.join(' ')} medicina funcional`,
-        'laboratory',
-        this.companyId
-      );
+      // Obter configuração da análise laboratorial
+      const analysisConfig = await this.aiService.getAnalysisConfig('laboratory');
 
-      // Gerar prompts
-      const { systemPrompt, userPrompt } = generatePrompt(
-        'laboratory',
-        patient,
-        examData,
-        undefined,
-        undefined,
-        ragContext
-      );
+      // Gerar contexto RAG se habilitado
+      let ragContext = '';
+      if (analysisConfig.ragEnabled) {
+        ragContext = await this.ragService.generateContext(
+          `exames laboratoriais ${patient.mainSymptoms?.join(' ')} medicina funcional`,
+          'laboratory',
+          this.companyId
+        );
+      }
 
-      // Executar análise
+      // Executar análise usando configurações globais
       const content = await this.aiService.generateAnalysis(
         'laboratory',
-        { patientData: patient, examData, ragContext },
-        systemPrompt,
-        userPrompt
+        { patientData: patient, examData, ragContext }
       );
 
       // Salvar análise no banco
@@ -120,26 +114,23 @@ export class AnalysisService {
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
 
-      const ragContext = await this.ragService.generateContext(
-        `medicina tradicional chinesa ${patient.mainSymptoms?.join(' ')} acupuntura fitoterapia`,
-        'tcm',
-        this.companyId
-      );
+      // Obter configuração da análise de MTC
+      const analysisConfig = await this.aiService.getAnalysisConfig('tcm');
 
-      const { systemPrompt, userPrompt } = generatePrompt(
-        'tcm',
-        patient,
-        tcmData,
-        undefined,
-        undefined,
-        ragContext
-      );
+      // Gerar contexto RAG se habilitado
+      let ragContext = '';
+      if (analysisConfig.ragEnabled) {
+        ragContext = await this.ragService.generateContext(
+          `medicina tradicional chinesa ${patient.mainSymptoms?.join(' ')} acupuntura fitoterapia`,
+          'tcm',
+          this.companyId
+        );
+      }
 
+      // Executar análise usando configurações globais
       const content = await this.aiService.generateAnalysis(
         'tcm',
-        { patientData: patient, examData: tcmData, ragContext },
-        systemPrompt,
-        userPrompt
+        { patientData: patient, examData: tcmData, ragContext }
       );
 
       const analysis = new Analysis({
@@ -187,26 +178,23 @@ export class AnalysisService {
         type: { $in: ['laboratory', 'tcm'] }
       }).sort({ createdAt: 1 });
 
-      const ragContext = await this.ragService.generateContext(
-        `cronologia saúde feminina ciclo menstrual ${patient.mainSymptoms?.join(' ')}`,
-        'chronology',
-        this.companyId
-      );
+      // Obter configuração da análise de cronologia
+      const analysisConfig = await this.aiService.getAnalysisConfig('chronology');
 
-      const { systemPrompt, userPrompt } = generatePrompt(
-        'chronology',
-        patient,
-        undefined,
-        undefined,
-        previousAnalyses,
-        ragContext
-      );
+      // Gerar contexto RAG se habilitado
+      let ragContext = '';
+      if (analysisConfig.ragEnabled) {
+        ragContext = await this.ragService.generateContext(
+          `cronologia saúde feminina ciclo menstrual ${patient.mainSymptoms?.join(' ')}`,
+          'chronology',
+          this.companyId
+        );
+      }
 
+      // Executar análise usando configurações globais
       const content = await this.aiService.generateAnalysis(
         'chronology',
-        { patientData: patient, previousAnalyses, ragContext },
-        systemPrompt,
-        userPrompt
+        { patientData: patient, previousAnalyses, ragContext }
       );
 
       const analysis = new Analysis({
@@ -253,26 +241,23 @@ export class AnalysisService {
         type: { $in: ['laboratory', 'tcm', 'chronology'] }
       }).sort({ createdAt: 1 });
 
-      const ragContext = await this.ragService.generateContext(
-        `medicina funcional matriz IFM sistemas ${patient.mainSymptoms?.join(' ')}`,
-        'ifm',
-        this.companyId
-      );
+      // Obter configuração da análise IFM
+      const analysisConfig = await this.aiService.getAnalysisConfig('ifm');
 
-      const { systemPrompt, userPrompt } = generatePrompt(
-        'ifm',
-        patient,
-        undefined,
-        undefined,
-        previousAnalyses,
-        ragContext
-      );
+      // Gerar contexto RAG se habilitado
+      let ragContext = '';
+      if (analysisConfig.ragEnabled) {
+        ragContext = await this.ragService.generateContext(
+          `medicina funcional matriz IFM sistemas ${patient.mainSymptoms?.join(' ')}`,
+          'ifm',
+          this.companyId
+        );
+      }
 
+      // Executar análise usando configurações globais
       const content = await this.aiService.generateAnalysis(
         'ifm',
-        { patientData: patient, previousAnalyses, ragContext },
-        systemPrompt,
-        userPrompt
+        { patientData: patient, previousAnalyses, ragContext }
       );
 
       const analysis = new Analysis({
@@ -322,26 +307,23 @@ export class AnalysisService {
         type: { $in: ['laboratory', 'tcm', 'chronology', 'ifm'] }
       }).sort({ createdAt: 1 });
 
-      const ragContext = await this.ragService.generateContext(
-        `plano tratamento ${user.specialization} ${patient.mainSymptoms?.join(' ')}`,
-        'treatmentPlan',
-        this.companyId
-      );
+      // Obter configuração da análise de plano de tratamento
+      const analysisConfig = await this.aiService.getAnalysisConfig('treatmentPlan');
 
-      const { systemPrompt, userPrompt } = generatePrompt(
-        'treatmentPlan',
-        patient,
-        undefined,
-        user.specialization || 'geral',
-        previousAnalyses,
-        ragContext
-      );
+      // Gerar contexto RAG se habilitado
+      let ragContext = '';
+      if (analysisConfig.ragEnabled) {
+        ragContext = await this.ragService.generateContext(
+          `plano tratamento ${user.specialization} ${patient.mainSymptoms?.join(' ')}`,
+          'treatmentPlan',
+          this.companyId
+        );
+      }
 
+      // Executar análise usando configurações globais
       const content = await this.aiService.generateAnalysis(
         'treatmentPlan',
-        { patientData: patient, previousAnalyses, ragContext },
-        systemPrompt,
-        userPrompt
+        { patientData: patient, previousAnalyses, ragContext }
       );
 
       const analysis = new Analysis({
