@@ -259,14 +259,29 @@ export default function PatientAnalysesPage({ params }: { params: Promise<{ id: 
                         onClick={() => router.push(`/analyses/${analysis._id}`)}
                         className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
                       >
-                        Ver Detalhes
+                        Ver Resultados
                       </button>
-                      <button
-                        onClick={() => router.push(`/analyses/${analysis._id}/edit`)}
-                        className="px-3 py-1 text-sm bg-gray-600 text-white rounded hover:bg-gray-700"
-                      >
-                        Editar
-                      </button>
+                      {analysis.status === 'pending' && (
+                        <button
+                          onClick={() => {
+                            // Redirecionar para execução da análise
+                            const analysisRoutes: { [key: string]: string } = {
+                              'laboratory': '/analyses/laboratory',
+                              'tcm': '/analyses/tcm',
+                              'chronology': '/analyses/chronology',
+                              'ifm': '/analyses/ifm',
+                              'treatment': '/analyses/treatment-plan'
+                            }
+                            const route = analysisRoutes[analysis.type]
+                            if (route) {
+                              router.push(`${route}?patientId=${resolvedParams.id}&analysisId=${analysis._id}`)
+                            }
+                          }}
+                          className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                          Executar
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

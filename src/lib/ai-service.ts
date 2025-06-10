@@ -48,10 +48,11 @@ export class AIService {
 
   private async loadGlobalConfig(): Promise<IGlobalAIConfig> {
     if (!this.globalConfig) {
+      console.log('🔍 Buscando configuração global no banco...');
       this.globalConfig = await GlobalAIConfig.findOne();
       
-      // Se não existe configuração, criar uma padrão
       if (!this.globalConfig) {
+        console.log('❌ Nenhuma configuração global encontrada, criando padrão...');
         const { getDefaultConfig } = await import('@/models/GlobalAIConfig');
         const defaultConfig = getDefaultConfig();
         const newConfig = new GlobalAIConfig({
@@ -60,6 +61,14 @@ export class AIService {
           version: '1.0.0'
         });
         this.globalConfig = await newConfig.save();
+        console.log('✅ Configuração padrão criada');
+      } else {
+        console.log('✅ Configuração global encontrada');
+        console.log('🔑 Chaves disponíveis:', {
+          openai: !!this.globalConfig.apiKeys?.openai,
+          anthropic: !!this.globalConfig.apiKeys?.anthropic,
+          google: !!this.globalConfig.apiKeys?.google
+        });
       }
       
       // Inicializar provedores com as chaves da configuração global
@@ -177,7 +186,7 @@ export class AIService {
     // Substituir dados de análises anteriores
     if (context.previousAnalyses) {
       const previousAnalysesString = context.previousAnalyses
-        .map(analysis => `${analysis.type}: ${analysis.output?.content || ''}`)
+        .map(analysis => `${analysis.type}: ${analysis.result?.rawOutput || ''}`)
         .join('\n\n');
       processedTemplate = processedTemplate
         .replace(/\{\{previousAnalyses\}\}/g, previousAnalysesString)
@@ -214,17 +223,26 @@ export class AIService {
       throw new Error('OpenAI não está configurado');
     }
 
-    const response = await this.openai.chat.completions.create({
-      model: provider.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: provider.temperature || 0.7,
-      max_tokens: provider.maxTokens || 2000,
-    });
+    try {
+      const response = await this.openai.chat.completions.create({
+        model: provider.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: provider.temperature || 0.7,
+        max_tokens: provider.maxTokens || 2000,
+      });
 
-    return response.choices[0]?.message?.content || '';
+      return response.choices[0]?.message?.content || '';
+    } catch (error: any) {
+      // Se é erro de cota esgotada, retornar análise demo
+      if (error?.status === 429 || error?.code === 'insufficient_quota') {
+        console.log('❌ Cota OpenAI esgotada:', error.message);
+        throw new Error('OpenAI sem cota disponível. Configure outro provider.');
+      }
+      throw error;
+    }
   }
 
   private async generateWithAnthropic(
@@ -273,18 +291,29 @@ export class AIService {
   }
 
   private async updateUsageTracking(analysisType: string, provider: AIProvider) {
-    const today = new Date().toISOString().split('T')[0];
-    
-    await Company.findByIdAndUpdate(this.company._id, {
-      $inc: {
-        [`usageTracking.${analysisType}.totalAnalyses`]: 1,
-        [`usageTracking.${analysisType}.byProvider.${provider.name}`]: 1,
-        [`usageTracking.${analysisType}.daily.${today}`]: 1,
-      },
-      $set: {
-        [`usageTracking.${analysisType}.lastUsed`]: new Date(),
-      }
-    });
+    // Só atualizar usage tracking se a company tem um _id válido (não é um mock)
+    if (!this.company._id || typeof this.company._id === 'string') {
+      console.log('Skipping usage tracking for mock company');
+      return;
+    }
+
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      await Company.findByIdAndUpdate(this.company._id, {
+        $inc: {
+          [`usageTracking.${analysisType}.totalAnalyses`]: 1,
+          [`usageTracking.${analysisType}.byProvider.${provider.name}`]: 1,
+          [`usageTracking.${analysisType}.daily.${today}`]: 1,
+        },
+        $set: {
+          [`usageTracking.${analysisType}.lastUsed`]: new Date(),
+        }
+      });
+    } catch (error) {
+      console.log('Error updating usage tracking:', error);
+      // Não falhar a análise por erro no tracking
+    }
   }
 
   // Método para gerar embeddings (usado no sistema RAG)
@@ -303,10 +332,29 @@ export class AIService {
 
   // Factory method para criar uma instância do serviço
   static async create(companyId: string): Promise<AIService> {
-    const company = await Company.findById(companyId);
-    if (!company) {
-      throw new Error('Empresa não encontrada');
+    let company: ICompany;
+    
+    if (companyId === 'global') {
+      // Para superadmin ou casos onde não há company específica, criar um mock
+      company = {
+        _id: 'global',
+        name: 'Global',
+        settings: {
+          aiProviders: {
+            openai: { apiKey: '' },
+            anthropic: { apiKey: '' },
+            google: { apiKey: '' }
+          }
+        }
+      } as unknown as ICompany;
+    } else {
+      const foundCompany = await Company.findById(companyId);
+      if (!foundCompany) {
+        throw new Error('Empresa não encontrada');
+      }
+      company = foundCompany;
     }
+    
     return new AIService(company);
   }
 } 

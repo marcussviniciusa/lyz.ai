@@ -74,7 +74,23 @@ export default function NewAnalysisPage({ params }: { params: Promise<{ id: stri
 
       if (response.ok) {
         const analysis = await response.json()
-        router.push(`/analyses/${analysis._id}`)
+        
+        // Redirecionar para a página específica de execução da análise
+        const analysisRoutes: { [key: string]: string } = {
+          'laboratory': '/analyses/laboratory',
+          'tcm': '/analyses/tcm',
+          'chronology': '/analyses/chronology',
+          'ifm': '/analyses/ifm',
+          'treatment': '/analyses/treatment-plan'
+        }
+        
+        const route = analysisRoutes[formData.type]
+        if (route) {
+          router.push(`${route}?patientId=${resolvedParams.id}&analysisId=${analysis._id}`)
+        } else {
+          // Se o tipo não for reconhecido, mostrar erro
+          alert('Tipo de análise não reconhecido')
+        }
       } else {
         const error = await response.json()
         alert(`Erro ao criar análise: ${error.error}`)

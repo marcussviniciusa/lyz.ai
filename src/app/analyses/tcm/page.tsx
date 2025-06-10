@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { 
-  ArrowLeft, Heart, Leaf, Yin, Yang, Zap
+  ArrowLeft, Heart, Leaf, Zap, Eye, Play, Save
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,14 +51,50 @@ interface TCMData {
     bowelMovement: string;
     temperature: string;
     sweating: string;
-    menstruation: string;
     emotions: string;
+  };
+  menstrualTcm: {
+    // Dados básicos (auto-preenchidos do cadastro)
+    menarche: number;
+    cycleLength: number;
+    menstruationLength: number;
+    lastMenstruation: string;
+    menopausalStatus: string;
+    contraceptiveUse: string;
+    
+    // Campos específicos TCM
+    menstrualFlow: string; // escasso, normal, abundante, muito abundante
+    menstrualColor: string; // vermelho vivo, vermelho escuro, rosa claro, marrom, roxo
+    menstrualTexture: string; // fluido, espesso, com coágulos, pegajoso
+    menstrualOdor: string; // sem odor, levemente doce, forte, fétido
+    cycleRegularity: string; // regular, irregular, antecipado, atrasado
+    dysmenorrhea: string; // ausente, leve, moderada, intensa
+    dysmenorrheaType: string; // antes da menstruação, durante, depois, todo o ciclo
+    dysmenorrheaCharacter: string; // cólica, dor em queimação, dor surda, dor em pontadas
+    preMenstrualSymptoms: string[]; // tensão mamária, irritabilidade, ansiedade, inchaço, etc
+    ovulationSigns: string; // dor ovulatória, muco cervical, sangramento meio ciclo
+    energyDuringCycle: string; // fase menstrual, folicular, ovulatória, lútea
+    emotionalPattern: string; // estável, irritável antes, depressiva durante, ansiosa depois
+    temperaturePattern: string; // sempre frio, calor antes, frio durante, alternado
+    sleepPattern: string; // normal, insônia pré-menstrual, sonolência durante
+    digestiveChanges: string; // normal, desejos alimentares, náuseas, constipação
+    urinaryChanges: string; // normal, retenção, urgência, infecções recorrentes
+    skinChanges: string; // normal, acne pré-menstrual, ressecamento, oleosidade
+    libidoPattern: string; // normal, diminuída, aumentada na ovulação, ausente
+    breastSymptoms: string; // normal, tensão, dor, secreção
+    headachePattern: string; // ausente, pré-menstrual, durante menstruação, pós-menstrual
+    weightChanges: string; // estável, ganho pré-menstrual, perda durante, flutuação constante
+    additional_notes: string;
   };
   additionalNotes: string;
 }
 
 export default function TCMAnalysisPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
+  const preSelectedPatientId = searchParams.get('patientId');
+  
   const [step, setStep] = useState(1);
   const [patients, setPatients] = useState<IPatient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<IPatient | null>(null);
@@ -96,8 +133,37 @@ export default function TCMAnalysisPage() {
       bowelMovement: '',
       temperature: '',
       sweating: '',
-      menstruation: '',
       emotions: ''
+    },
+    menstrualTcm: {
+      menarche: 0,
+      cycleLength: 0,
+      menstruationLength: 0,
+      lastMenstruation: '',
+      menopausalStatus: '',
+      contraceptiveUse: '',
+      menstrualFlow: '',
+      menstrualColor: '',
+      menstrualTexture: '',
+      menstrualOdor: '',
+      cycleRegularity: '',
+      dysmenorrhea: '',
+      dysmenorrheaType: '',
+      dysmenorrheaCharacter: '',
+      preMenstrualSymptoms: [],
+      ovulationSigns: '',
+      energyDuringCycle: '',
+      emotionalPattern: '',
+      temperaturePattern: '',
+      sleepPattern: '',
+      digestiveChanges: '',
+      urinaryChanges: '',
+      skinChanges: '',
+      libidoPattern: '',
+      breastSymptoms: '',
+      headachePattern: '',
+      weightChanges: '',
+      additional_notes: ''
     },
     additionalNotes: ''
   });
@@ -107,6 +173,37 @@ export default function TCMAnalysisPage() {
   useEffect(() => {
     fetchPatients();
   }, []);
+
+  // Pré-selecionar paciente se fornecido via URL
+  useEffect(() => {
+    if (preSelectedPatientId && patients.length > 0) {
+      const patient = patients.find(p => p._id.toString() === preSelectedPatientId);
+      if (patient) {
+        setSelectedPatient(patient);
+        autoFillMenstrualData(patient);
+        setStep(2); // Ir direto para o step de inserção de dados
+      }
+    }
+  }, [preSelectedPatientId, patients]);
+
+  // Auto-preencher dados menstruais do cadastro
+  const autoFillMenstrualData = (patient: IPatient) => {
+    if (patient.menstrualHistory) {
+      setTcmData(prev => ({
+        ...prev,
+        menstrualTcm: {
+          ...prev.menstrualTcm,
+          menarche: patient.menstrualHistory?.menarche || 0,
+          cycleLength: patient.menstrualHistory?.cycleLength || 0,
+          menstruationLength: patient.menstrualHistory?.menstruationLength || 0,
+          lastMenstruation: patient.menstrualHistory?.lastMenstruation ? 
+            new Date(patient.menstrualHistory.lastMenstruation).toISOString().split('T')[0] : '',
+          menopausalStatus: patient.menstrualHistory?.menopausalStatus || '',
+          contraceptiveUse: patient.menstrualHistory?.contraceptiveUse || ''
+        }
+      }));
+    }
+  };
 
   const fetchPatients = async () => {
     try {
@@ -123,6 +220,20 @@ export default function TCMAnalysisPage() {
   const handleTCMDataChange = (section: keyof TCMData, field: string, value: string) => {
     if (section === 'additionalNotes') {
       setTcmData(prev => ({ ...prev, additionalNotes: value }));
+    } else if (section === 'menstrualTcm' && field === 'preMenstrualSymptoms') {
+      // Tratar array de sintomas pré-menstruais
+      try {
+        const arrayValue = JSON.parse(value);
+        setTcmData(prev => ({
+          ...prev,
+          [section]: {
+            ...(prev[section] as any),
+            [field]: arrayValue
+          }
+        }));
+      } catch (error) {
+        console.error('Erro ao parsear sintomas:', error);
+      }
     } else {
       setTcmData(prev => ({
         ...prev,
@@ -205,8 +316,37 @@ export default function TCMAnalysisPage() {
         bowelMovement: '',
         temperature: '',
         sweating: '',
-        menstruation: '',
         emotions: ''
+      },
+      menstrualTcm: {
+        menarche: 0,
+        cycleLength: 0,
+        menstruationLength: 0,
+        lastMenstruation: '',
+        menopausalStatus: '',
+        contraceptiveUse: '',
+        menstrualFlow: '',
+        menstrualColor: '',
+        menstrualTexture: '',
+        menstrualOdor: '',
+        cycleRegularity: '',
+        dysmenorrhea: '',
+        dysmenorrheaType: '',
+        dysmenorrheaCharacter: '',
+        preMenstrualSymptoms: [],
+        ovulationSigns: '',
+        energyDuringCycle: '',
+        emotionalPattern: '',
+        temperaturePattern: '',
+        sleepPattern: '',
+        digestiveChanges: '',
+        urinaryChanges: '',
+        skinChanges: '',
+        libidoPattern: '',
+        breastSymptoms: '',
+        headachePattern: '',
+        weightChanges: '',
+        additional_notes: ''
       },
       additionalNotes: ''
     });
@@ -266,7 +406,10 @@ export default function TCMAnalysisPage() {
                      ${selectedPatient?._id === patient._id 
                        ? 'border-blue-500 bg-blue-50' 
                        : 'border-gray-200 hover:border-gray-300'}`}
-                   onClick={() => setSelectedPatient(patient)}
+                   onClick={() => {
+                     setSelectedPatient(patient);
+                     autoFillMenstrualData(patient);
+                   }}
                  >
                    <div className="flex items-center justify-between">
                      <div>
@@ -450,95 +593,213 @@ export default function TCMAnalysisPage() {
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <h2 className="text-xl font-semibold mb-6 flex items-center">
               <Heart className="w-5 h-5 mr-2" />
-              Dados Menstruais e Energéticos
+              Dados Menstruais e Energéticos TCM
             </h2>
 
+            {selectedPatient?.menstrualHistory && (
+              <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                <h3 className="font-medium text-blue-900 mb-2">Dados do Cadastro da Paciente:</h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div><strong>Menarca:</strong> {selectedPatient.menstrualHistory.menarche} anos</div>
+                  <div><strong>Ciclo:</strong> {selectedPatient.menstrualHistory.cycleLength} dias</div>
+                  <div><strong>Duração:</strong> {selectedPatient.menstrualHistory.menstruationLength} dias</div>
+                  <div><strong>Status:</strong> {selectedPatient.menstrualHistory.menopausalStatus === 'pre' ? 'Pré-menopausa' : selectedPatient.menstrualHistory.menopausalStatus === 'peri' ? 'Perimenopausa' : 'Pós-menopausa'}</div>
+                  {selectedPatient.menstrualHistory.contraceptiveUse && (
+                    <div><strong>Contraceptivo:</strong> {selectedPatient.menstrualHistory.contraceptiveUse}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid md:grid-cols-2 gap-8">
-              {/* Dados Menstruais */}
+              {/* Análise Menstrual TCM */}
               <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Ciclo Menstrual</h3>
+                <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Análise Menstrual - TCM</h3>
                 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Fase Menstrual Atual</label>
-                  <select
-                    value={tcmData.symptoms.menstruation}
-                    onChange={(e) => handleTCMDataChange('symptoms', 'menstruation', e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Selecione...</option>
-                    <option value="Menstrual (1-5 dias)">Menstrual (1-5 dias)</option>
-                    <option value="Folicular (6-12 dias)">Folicular (6-12 dias)</option>
-                    <option value="Ovulatória (13-15 dias)">Ovulatória (13-15 dias)</option>
-                    <option value="Lútea (16-28 dias)">Lútea (16-28 dias)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Última Menstruação</label>
-                  <input
-                    type="date"
-                    value={tcmData.symptoms.menstruation}
-                    onChange={(e) => handleTCMDataChange('symptoms', 'menstruation', e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Fluxo Menstrual</label>
                   <select
-                    value={tcmData.symptoms.menstruation}
-                    onChange={(e) => handleTCMDataChange('symptoms', 'menstruation', e.target.value)}
+                    value={tcmData.menstrualTcm.menstrualFlow}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'menstrualFlow', e.target.value)}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Selecione...</option>
-                    <option value="Escasso">Escasso</option>
-                    <option value="Normal">Normal</option>
-                    <option value="Abundante">Abundante</option>
-                    <option value="Muito abundante">Muito abundante</option>
+                    <option value="escasso">Escasso</option>
+                    <option value="normal">Normal</option>
+                    <option value="abundante">Abundante</option>
+                    <option value="muito-abundante">Muito abundante</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Sintomas Pré-menstruais</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {['Irritabilidade', 'Ansiedade', 'Sensibilidade mamária', 'Inchaço', 'Mudanças de humor', 'Fadiga', 'Dor de cabeça', 'Insônia', 'Desejos alimentares', 'Acne', 'Dor nas costas'].map(symptom => (
-                      <label key={symptom} className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={tcmData.symptoms.menstruation.includes(symptom)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              handleTCMDataChange('symptoms', 'menstruation', tcmData.symptoms.menstruation + ', ' + symptom);
-                            } else {
-                              handleTCMDataChange('symptoms', 'menstruation', tcmData.symptoms.menstruation.replace(symptom, '').replace(/, $/, ''));
-                            }
-                          }}
-                          className="mr-2"
-                        />
-                        <span className="text-sm">{symptom}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Estado Energético */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Estado Energético</h3>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Nível de Energia</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Cor do Sangue Menstrual</label>
                   <select
-                    value={tcmData.generalObservation.mood}
-                    onChange={(e) => handleTCMDataChange('generalObservation', 'mood', e.target.value)}
+                    value={tcmData.menstrualTcm.menstrualColor}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'menstrualColor', e.target.value)}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Selecione...</option>
-                    <option value="Muito baixo">Muito baixo</option>
-                    <option value="Baixo">Baixo</option>
-                    <option value="Normal">Normal</option>
-                    <option value="Alto">Alto</option>
-                    <option value="Muito alto">Muito alto</option>
+                    <option value="vermelho-vivo">Vermelho vivo</option>
+                    <option value="vermelho-escuro">Vermelho escuro</option>
+                    <option value="rosa-claro">Rosa claro</option>
+                    <option value="marrom">Marrom</option>
+                    <option value="roxo">Roxo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Textura do Sangue</label>
+                  <select
+                    value={tcmData.menstrualTcm.menstrualTexture}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'menstrualTexture', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="fluido">Fluido</option>
+                    <option value="espesso">Espesso</option>
+                    <option value="com-coagulos">Com coágulos</option>
+                    <option value="pegajoso">Pegajoso</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Regularidade do Ciclo</label>
+                  <select
+                    value={tcmData.menstrualTcm.cycleRegularity}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'cycleRegularity', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="regular">Regular</option>
+                    <option value="irregular">Irregular</option>
+                    <option value="antecipado">Antecipado</option>
+                    <option value="atrasado">Atrasado</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Intensidade da Dismenorreia</label>
+                  <select
+                    value={tcmData.menstrualTcm.dysmenorrhea}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'dysmenorrhea', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="ausente">Ausente</option>
+                    <option value="leve">Leve</option>
+                    <option value="moderada">Moderada</option>
+                    <option value="intensa">Intensa</option>
+                  </select>
+                </div>
+
+                                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Dor Menstrual</label>
+                   <select
+                     value={tcmData.menstrualTcm.dysmenorrheaCharacter}
+                     onChange={(e) => handleTCMDataChange('menstrualTcm', 'dysmenorrheaCharacter', e.target.value)}
+                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                   >
+                     <option value="">Selecione...</option>
+                     <option value="colica">Cólica</option>
+                     <option value="queimacao">Dor em queimação</option>
+                     <option value="surda">Dor surda</option>
+                     <option value="pontadas">Dor em pontadas</option>
+                   </select>
+                 </div>
+
+                 <div>
+                   <label className="block text-sm font-medium text-gray-700 mb-2">Sintomas Pré-menstruais</label>
+                   <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
+                     {['Irritabilidade', 'Ansiedade', 'Tensão mamária', 'Inchaço', 'Mudanças de humor', 'Fadiga', 'Dor de cabeça', 'Insônia', 'Desejos alimentares', 'Acne', 'Dor nas costas'].map(symptom => {
+                       const isChecked = tcmData.menstrualTcm.preMenstrualSymptoms.includes(symptom);
+                       return (
+                         <label key={symptom} className="flex items-center">
+                           <input
+                             type="checkbox"
+                             checked={isChecked}
+                             onChange={(e) => {
+                               const currentSymptoms = tcmData.menstrualTcm.preMenstrualSymptoms;
+                               if (e.target.checked) {
+                                 handleTCMDataChange('menstrualTcm', 'preMenstrualSymptoms', JSON.stringify([...currentSymptoms, symptom]));
+                               } else {
+                                 handleTCMDataChange('menstrualTcm', 'preMenstrualSymptoms', JSON.stringify(currentSymptoms.filter(s => s !== symptom)));
+                               }
+                             }}
+                             className="mr-2"
+                           />
+                           <span className="text-sm">{symptom}</span>
+                         </label>
+                       );
+                     })}
+                   </div>
+                 </div>
+               </div>
+
+              {/* Padrões Energéticos e Emocionais */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-gray-900 border-b pb-2">Padrões Energéticos - TCM</h3>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Energia Durante o Ciclo</label>
+                  <select
+                    value={tcmData.menstrualTcm.energyDuringCycle}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'energyDuringCycle', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="baixa-menstrual">Baixa durante menstruação</option>
+                    <option value="baixa-pre">Baixa pré-menstrual</option>
+                    <option value="alta-ovulacao">Alta na ovulação</option>
+                    <option value="estavel">Estável todo ciclo</option>
+                    <option value="flutuante">Flutuante</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Padrão Emocional</label>
+                  <select
+                    value={tcmData.menstrualTcm.emotionalPattern}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'emotionalPattern', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="estavel">Estável</option>
+                    <option value="irritavel-pre">Irritável antes</option>
+                    <option value="depressiva-durante">Depressiva durante</option>
+                    <option value="ansiosa-pos">Ansiosa depois</option>
+                    <option value="instavel">Instável todo ciclo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Padrão de Temperatura</label>
+                  <select
+                    value={tcmData.menstrualTcm.temperaturePattern}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'temperaturePattern', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="sempre-frio">Sempre frio</option>
+                    <option value="calor-pre">Calor antes da menstruação</option>
+                    <option value="frio-durante">Frio durante menstruação</option>
+                    <option value="alternado">Alternado</option>
+                    <option value="normal">Normal</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Padrão de Sono</label>
+                  <select
+                    value={tcmData.menstrualTcm.sleepPattern}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'sleepPattern', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="normal">Normal</option>
+                    <option value="insonia-pre">Insônia pré-menstrual</option>
+                    <option value="sonolencia-durante">Sonolência durante</option>
+                    <option value="interrompido">Sono interrompido</option>
+                    <option value="pesadelos">Pesadelos/sonhos agitados</option>
                   </select>
                 </div>
 
@@ -715,18 +976,12 @@ export default function TCMAnalysisPage() {
               >
                 Voltar para Análises
               </button>
-              <div className="flex space-x-3">
-                <button
-                  onClick={resetForm}
-                  className="px-6 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50"
-                >
-                  Nova Análise
-                </button>
-                <button className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center">
-                  <Save className="w-4 h-4 mr-2" />
-                  Salvar Relatório
-                </button>
-              </div>
+              <button
+                onClick={resetForm}
+                className="px-6 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50"
+              >
+                Nova Análise
+              </button>
             </div>
           </div>
         )}

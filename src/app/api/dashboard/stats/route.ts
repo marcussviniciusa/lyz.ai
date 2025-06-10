@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const companyId = user.companyId
+    const companyId = user.company
 
     // Obter estatísticas gerais
     const [
@@ -40,10 +40,10 @@ export async function GET(request: NextRequest) {
       totalUsers,
       company
     ] = await Promise.all([
-      Patient.countDocuments({ companyId }),
-      Analysis.countDocuments({ companyId }),
+      Patient.countDocuments({ company: companyId }),
+      Analysis.countDocuments({ company: companyId }),
       Document.countDocuments({ companyId }),
-      User.countDocuments({ companyId }),
+      User.countDocuments({ company: companyId }),
       Company.findById(companyId)
     ])
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     const analysesByType = await Analysis.aggregate([
       {
         $match: {
-          companyId: companyId,
+          company: companyId,
           createdAt: { $gte: thirtyDaysAgo }
         }
       },
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
         $group: {
           _id: '$type',
           count: { $sum: 1 },
-          avgProcessingTime: { $avg: '$processingTime' }
+          avgProcessingTime: { $avg: '$aiMetadata.processingTime' }
         }
       }
     ])
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
     const dailyAnalyses = await Analysis.aggregate([
       {
         $match: {
-          companyId: companyId,
+          company: companyId,
           createdAt: { $gte: sevenDaysAgo }
         }
       },
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
 
     // Pacientes com análises recentes
     const recentPatients = await Patient.find({ 
-      companyId 
+      company: companyId 
     })
     .limit(5)
     .sort({ updatedAt: -1 })
@@ -114,14 +114,14 @@ export async function GET(request: NextRequest) {
 
     // Análises mais recentes
     const recentAnalyses = await Analysis.find({
-      companyId,
+      company: companyId,
       status: 'completed'
     })
-    .populate('patientId', 'name age')
-    .populate('userId', 'name')
+    .populate('patient', 'name age')
+    .populate('professional', 'name')
     .limit(10)
     .sort({ createdAt: -1 })
-    .select('type createdAt processingTime patientId userId')
+    .select('type createdAt aiMetadata.processingTime patient professional')
 
     // Estatísticas de uso de IA por provider
     const aiUsageStats = company?.usage || {
@@ -169,12 +169,12 @@ export async function GET(request: NextRequest) {
         id: analysis._id,
         type: analysis.type,
         patient: {
-          id: analysis.patientId?._id,
-          name: analysis.patientId?.name
+          id: analysis.patient?._id,
+          name: analysis.patient?.name
         },
-        user: analysis.userId?.name,
+        user: analysis.professional?.name,
         createdAt: analysis.createdAt,
-        processingTime: analysis.processingTime
+        processingTime: analysis.aiMetadata?.processingTime
       })),
       aiProviders: company?.settings?.aiProviders ? {
         hasOpenAI: !!company.settings.aiProviders.openai?.apiKey,

@@ -10,7 +10,7 @@ Plataforma digital para profissionais de saúde especializados em saúde feminin
 - **Profissional**: Médico, nutricionista, terapeuta
 
 ### 5 Análises de IA
-1. **Análise Laboratorial** - Interpretação de exames
+1. **Análise Laboratorial** - Interpretação de exames com OCR via Google Vision API
 2. **Análise de Medicina Tradicional Chinesa** - Avaliação energética
 3. **Geração de Cronologia** - Linha do tempo da saúde
 4. **Matriz IFM** - Análise de Medicina Funcional
@@ -28,6 +28,7 @@ Plataforma digital para profissionais de saúde especializados em saúde feminin
 - **Banco de Dados**: MongoDB com Mongoose
 - **Armazenamento**: MinIO para arquivos
 - **IA**: OpenAI, Anthropic, Google AI
+- **OCR**: Google Cloud Vision API para processamento de exames
 - **RAG**: LangChain para processamento de documentos
 
 ## 📋 Pré-requisitos
@@ -56,7 +57,12 @@ cp .env.example .env.local
 
 4. Edite o arquivo `.env.local` com suas configurações.
 
-5. Execute o projeto:
+5. Configure o Google Vision API (opcional, mas recomendado):
+```bash
+# Veja GOOGLE_VISION_SETUP.md para instruções detalhadas
+```
+
+6. Execute o projeto:
 ```bash
 npm run dev
 ```

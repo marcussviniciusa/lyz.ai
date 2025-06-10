@@ -12,6 +12,10 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [patientToDelete, setPatientToDelete] = useState<any>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -42,6 +46,54 @@ export default function PatientsPage() {
     }
   }
 
+  const handleDeletePatient = async () => {
+    if (!patientToDelete) {
+      console.log('❌ Erro: patientToDelete é null')
+      return
+    }
+    
+    console.log('🗑️ Iniciando exclusão de paciente:', patientToDelete.name, 'ID:', patientToDelete._id)
+    console.log('🕐 Timestamp início:', new Date().toISOString())
+    setIsDeleting(true)
+    try {
+      const url = `/api/patients/${patientToDelete._id}`
+      console.log('📞 Fazendo requisição DELETE para:', url)
+      console.log('🔧 Configuração da requisição:', { method: 'DELETE' })
+      
+      const response = await fetch(url, {
+        method: 'DELETE'
+      })
+
+      console.log('📊 Status da resposta:', response.status)
+      console.log('✅ Resposta recebida em:', new Date().toISOString())
+
+      if (response.ok) {
+        console.log('✅ Paciente excluída com sucesso')
+        // Recarregar lista de pacientes para garantir sincronização
+        await loadPatients()
+        setShowDeleteModal(false)
+        setPatientToDelete(null)
+        setSuccessMessage('Paciente excluída com sucesso!')
+        setTimeout(() => setSuccessMessage(''), 3000)
+      } else {
+        const errorData = await response.json()
+        console.error('❌ Erro na resposta:', errorData)
+        alert(errorData.error || 'Erro ao excluir paciente')
+      }
+    } catch (error) {
+      console.error('❌ Erro ao excluir paciente:', error)
+      alert('Erro de conexão ao excluir paciente')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const confirmDelete = (patient: any) => {
+    console.log('🚨 Confirmando exclusão de paciente:', patient.name, 'ID:', patient._id)
+    setPatientToDelete(patient)
+    setShowDeleteModal(true)
+  }
+
   if (status === 'loading' || loading) {
     return (
       <DashboardLayout>
@@ -62,6 +114,24 @@ export default function PatientsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* Mensagem de Sucesso */}
+        {successMessage && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" fill="none" viewBox="0 0 20 20" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-green-800">
+                  {successMessage}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="md:flex md:items-center md:justify-between">
           <div className="flex-1 min-w-0">
@@ -183,6 +253,15 @@ export default function PatientsPage() {
                       >
                         Ver Detalhes
                       </Link>
+                      <button
+                        onClick={() => {
+                          console.log('🖱️ Botão Excluir clicado para:', patient.name)
+                          confirmDelete(patient)
+                        }}
+                        className="text-red-600 hover:text-red-900 text-sm font-medium"
+                      >
+                        Excluir
+                      </button>
                     </div>
                   </div>
                 </li>
@@ -254,6 +333,65 @@ export default function PatientsPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal de Confirmação de Exclusão */}
+      {showDeleteModal && patientToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Confirmar Exclusão
+                </h3>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                Tem certeza de que deseja excluir a paciente <strong>{patientToDelete.name}</strong>?
+              </p>
+              <p className="text-sm text-red-600 mt-2">
+                ⚠️ Esta ação não pode ser desfeita e todas as análises associadas serão perdidas.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setPatientToDelete(null)
+                }}
+                disabled={isDeleting}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+                             <button
+                 onClick={() => {
+                   console.log('🔥 Botão Confirmar Exclusão clicado!')
+                   handleDeletePatient()
+                 }}
+                 disabled={isDeleting}
+                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 flex items-center"
+               >
+                {isDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Excluindo...
+                  </>
+                ) : (
+                  'Confirmar Exclusão'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 } 

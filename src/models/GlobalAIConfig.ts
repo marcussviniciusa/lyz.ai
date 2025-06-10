@@ -10,6 +10,14 @@ export interface IGlobalAIConfig {
     google?: string
   }
   
+  // Configuração do Google Vision OCR
+  googleVision: {
+    enabled: boolean
+    projectId?: string
+    clientEmail?: string
+    privateKey?: string
+  }
+  
   // Configuração para Análise Laboratorial
   laboratory: {
     provider: 'openai' | 'anthropic' | 'google'
@@ -136,6 +144,12 @@ const GlobalAIConfigSchema = new mongoose.Schema<IGlobalAIConfig>({
     anthropic: { type: String, required: false },
     google: { type: String, required: false }
   },
+  googleVision: {
+    enabled: { type: Boolean, default: false },
+    projectId: { type: String, required: false },
+    clientEmail: { type: String, required: false },
+    privateKey: { type: String, required: false }
+  },
   laboratory: {
     type: AnalysisConfigSchema,
     required: true
@@ -181,6 +195,12 @@ export const getDefaultConfig = (): Omit<IGlobalAIConfig, '_id' | 'createdAt' | 
     openai: '',
     anthropic: '',
     google: ''
+  },
+  googleVision: {
+    enabled: false,
+    projectId: '',
+    clientEmail: '',
+    privateKey: ''
   },
   laboratory: {
     provider: 'openai',

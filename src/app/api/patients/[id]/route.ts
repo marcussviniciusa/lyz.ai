@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 // import { authOptions } from '@/lib/auth'
 import { connectToDatabase } from '@/lib/db'
 import Patient from '@/models/Patient'
-import { ObjectId } from 'mongodb'
+import mongoose from 'mongoose'
 
 export async function GET(
   request: NextRequest,
@@ -24,7 +24,7 @@ export async function GET(
     console.log('✅ Conectado ao banco de dados')
 
     // Verificar se o ID é válido
-    if (!ObjectId.isValid(id)) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       console.log('❌ ID inválido:', id)
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
@@ -70,7 +70,7 @@ export async function PUT(
     await connectToDatabase()
 
     // Verificar se o ID é válido
-    if (!ObjectId.isValid(id)) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
 
@@ -132,6 +132,10 @@ export async function DELETE(
 ) {
   const { id } = await params
   try {
+    console.log('🗑️ API DELETE chamada para paciente ID:', id)
+    console.log('📊 Request method:', request.method)
+    console.log('🕐 Timestamp:', new Date().toISOString())
+    
     // Temporariamente desabilitando autenticação para teste
     // const session = await getServerSession(authOptions)
     // if (!session?.user) {
@@ -143,28 +147,41 @@ export async function DELETE(
     // }
 
     await connectToDatabase()
+    console.log('✅ Conectado ao banco de dados')
 
     // Verificar se o ID é válido
-    if (!ObjectId.isValid(id)) {
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log('❌ ID inválido:', id)
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
 
+    console.log('🔍 Buscando paciente no banco...')
     const patient = await Patient.findById(id)
     
     if (!patient) {
+      console.log('❌ Paciente não encontrado')
       return NextResponse.json({ error: 'Paciente não encontrado' }, { status: 404 })
     }
+
+    console.log('👤 Paciente encontrado:', patient.name)
+    console.log('🗑️ Marcando paciente como inativo...')
 
     // Verificar se o usuário tem acesso a este paciente (mesma empresa)
     // if (session.user.role !== 'superadmin' && patient.companyId.toString() !== session.user.companyId) {
     //   return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     // }
 
-    await Patient.findByIdAndDelete(id)
+    // Fazer soft delete - marcar como inativo ao invés de deletar
+    const updatedPatient = await Patient.findByIdAndUpdate(id, { 
+      isActive: false,
+      updatedAt: new Date()
+    }, { new: true })
+    console.log('✅ Paciente marcado como inativo com sucesso')
+    console.log('📊 Status do paciente após atualização:', updatedPatient?.isActive)
 
     return NextResponse.json({ message: 'Paciente deletado com sucesso' })
   } catch (error) {
-    console.error('Erro ao deletar paciente:', error)
+    console.error('❌ Erro ao deletar paciente:', error)
     return NextResponse.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }

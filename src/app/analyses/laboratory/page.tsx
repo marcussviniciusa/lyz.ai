@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
 import { Upload, FileText, X, AlertCircle, CheckCircle, Clock, TrendingUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -39,6 +39,9 @@ interface AnalysisResult {
 export default function LaboratoryAnalysisPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const preSelectedPatientId = searchParams.get('patientId')
+  
   const [step, setStep] = useState(1)
   const [selectedPatient, setSelectedPatient] = useState('')
   const [patients, setPatients] = useState<Patient[]>([])
@@ -48,6 +51,9 @@ export default function LaboratoryAnalysisPage() {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [ocrResults, setOcrResults] = useState<any[]>([])
+  const [processingMethod, setProcessingMethod] = useState('')
+  const [confidence, setConfidence] = useState(0)
   
   // Manual input state
   const [labData, setLabData] = useState('')
@@ -70,6 +76,17 @@ export default function LaboratoryAnalysisPage() {
       loadPatients()
     }
   }, [status])
+
+  // Pré-selecionar paciente se fornecido via URL
+  useEffect(() => {
+    if (preSelectedPatientId && patients.length > 0) {
+      const patientExists = patients.find(p => p._id === preSelectedPatientId)
+      if (patientExists) {
+        setSelectedPatient(preSelectedPatientId)
+        setStep(2) // Ir direto para o step de inserção de dados
+      }
+    }
+  }, [preSelectedPatientId, patients])
 
   const loadPatients = async () => {
     setLoadingPatients(true)
@@ -112,6 +129,9 @@ export default function LaboratoryAnalysisPage() {
     if (uploadedFiles.length === 0) return ''
     
     setIsUploading(true)
+    setUploadError('')
+    setOcrResults([])
+    
     try {
       const formData = new FormData()
       uploadedFiles.forEach(file => formData.append('files', file))
@@ -126,9 +146,21 @@ export default function LaboratoryAnalysisPage() {
       }
       
       const data = await response.json()
+      
+      // Capturar informações do processamento
+      setConfidence(data.confidence || 0)
+      setProcessingMethod(data.method || 'unknown')
+      setOcrResults(data.ocrResults || [])
+      
+      if (data.processingErrors && data.processingErrors.length > 0) {
+        console.warn('Erros de processamento:', data.processingErrors)
+      }
+      
       return data.extractedText || ''
-    } catch (error) {
-      setUploadError('Erro ao processar arquivos')
+    } catch (error: any) {
+      setUploadError('Erro ao processar arquivos: ' + error.message)
+      setConfidence(0)
+      setProcessingMethod('error')
       return ''
     } finally {
       setIsUploading(false)
@@ -217,8 +249,6 @@ export default function LaboratoryAnalysisPage() {
       default: return null
     }
   }
-
-
 
   if (status === 'loading') {
     return (
@@ -467,6 +497,67 @@ export default function LaboratoryAnalysisPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Status do Processamento OCR */}
+                    {(confidence > 0 || processingMethod) && (
+                      <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+                        <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center">
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Status do Processamento OCR
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-blue-700">Método:</span>
+                            <span className="text-blue-900 font-medium">
+                              {processingMethod === 'google_vision' && '🔍 Google Vision API'}
+                              {processingMethod === 'fallback' && '📄 Modo Simulação'}
+                              {processingMethod === 'error_fallback' && '⚠️ Fallback (Erro)'}
+                              {!processingMethod && 'Processando...'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-blue-700">Confiança:</span>
+                            <span className={`font-medium ${
+                              confidence >= 0.8 ? 'text-green-600' :
+                              confidence >= 0.6 ? 'text-yellow-600' : 'text-red-600'
+                            }`}>
+                              {(confidence * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          {ocrResults.length > 0 && (
+                            <div className="mt-3">
+                              <span className="text-blue-700 font-medium">Arquivos processados:</span>
+                              <div className="mt-1 space-y-1">
+                                {ocrResults.map((result, idx) => (
+                                  <div key={idx} className="text-xs bg-white p-2 rounded border">
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-medium">{result.fileName}</span>
+                                      <span className={`px-2 py-1 rounded ${
+                                        result.confidence >= 0.8 ? 'bg-green-100 text-green-800' :
+                                        result.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                                        'bg-red-100 text-red-800'
+                                      }`}>
+                                        {result.confidence ? `${(result.confidence * 100).toFixed(0)}%` : 'N/A'}
+                                      </span>
+                                    </div>
+                                    {result.examType && (
+                                      <div className="text-gray-600 mt-1">
+                                        Tipo detectado: {result.examType}
+                                      </div>
+                                    )}
+                                    {result.error && (
+                                      <div className="text-red-600 mt-1">
+                                        Erro: {result.error}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -483,29 +574,21 @@ export default function LaboratoryAnalysisPage() {
                     value={labData}
                     onChange={(e) => setLabData(e.target.value)}
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
-                    placeholder="Cole aqui os resultados dos exames laboratoriais, exemplo:
+                    placeholder="Cole aqui os resultados dos exames laboratoriais.
 
-Hemograma Completo:
-- Hemácias: 4.2 milhões/mm³ (VR: 4.0-5.0)
-- Hemoglobina: 12.5 g/dL (VR: 12.0-16.0)
-- Hematócrito: 38% (VR: 36-46)
+FORMATO ACEITO - Apenas dados laboratoriais reais:
 
-Perfil Lipídico:
-- Colesterol Total: 200 mg/dL (VR: <200)
-- HDL: 45 mg/dL (VR: >40)
-- LDL: 130 mg/dL (VR: <130)
+✅ Exemplos corretos:
+TSH: 2.5 mUI/L (VR: 0.4-4.0)
+Hemoglobina: 12.5 g/dL (VR: 12.0-16.0)
+Vitamina D: 25 ng/mL (VR: 30-100)
+Ferritina: 45 ng/mL (Ref: 15-200)
+Glicose: 95 mg/dL (VR: 70-110)
+Colesterol Total: 180 mg/dL
+HDL: 45 mg/dL (VR: >40)
 
-Hormônios:
-- TSH: 2.5 mUI/L (VR: 0.4-4.0)
-- T4 Livre: 1.2 ng/dL (VR: 0.8-1.8)
-- FSH: 8.0 mUI/mL (VR: 2.0-12.0)
-- LH: 6.5 mUI/mL (VR: 1.0-12.0)
-
-Vitaminas e Minerais:
-- Vitamina D: 25 ng/mL (VR: 30-100)
-- B12: 350 pg/mL (VR: 200-900)
-- Ferro: 70 μg/dL (VR: 60-150)
-- Ferritina: 25 ng/mL (VR: 15-200)"
+❌ Evite incluir dados administrativos:
+CNES, CRF, idade, cadastro, telefone, endereço, etc."
                   />
                   <p className="mt-1 text-sm text-gray-500">
                     Inclua valores de referência quando disponíveis. A IA pode interpretar diversos formatos.
@@ -630,65 +713,7 @@ Vitaminas e Minerais:
                   </CardContent>
                 </Card>
 
-                {/* Insights da Medicina Funcional */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <TrendingUp className="w-5 h-5 text-blue-500" />
-                      <span>Insights da Medicina Funcional</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">🎯 Recomendações Prioritárias</h4>
-                        <ul className="space-y-2">
-                          {results.recommendations.map((rec, index) => (
-                            <li key={index} className="flex items-start space-x-2">
-                              <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                              <span className="text-sm text-gray-700">{rec}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">⚠️ Fatores de Risco</h4>
-                        <ul className="space-y-2">
-                          {results.riskFactors.map((risk, index) => (
-                            <li key={index} className="flex items-start space-x-2">
-                              <AlertCircle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                              <span className="text-sm text-gray-700">{risk}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-6">
-                      <h4 className="font-semibold text-gray-900 mb-3">🔬 Correlações Funcionais</h4>
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <ul className="space-y-2">
-                          {results.functionalInsights.map((insight, index) => (
-                            <li key={index} className="text-sm text-green-800">• {insight}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Acompanhamento */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>📅 Plano de Acompanhamento</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      <p className="text-gray-800">{results.followUp}</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* Seções removidas: Insights da Medicina Funcional e Plano de Acompanhamento */}
 
                 {/* Ações */}
                 <div className="flex justify-between">

@@ -8,11 +8,30 @@ import { formatDateBR, calculateDaysSince } from '@/utils/dateUtils'
 interface Analysis {
   _id: string
   type: 'laboratory' | 'tcm' | 'chronology' | 'ifm' | 'treatment'
-  description: string
-  result: string
-  recommendations: string[]
-  status: 'pending' | 'in_progress' | 'completed'
-  professional: string
+  status: 'pending' | 'processing' | 'completed' | 'error'
+  patient: {
+    _id: string
+    name: string
+  }
+  professional: {
+    _id: string
+    name: string
+  }
+  result?: {
+    rawOutput?: string
+    laboratoryAnalysis?: {
+      interpretation?: string
+      recommendations?: string[]
+      alteredValues?: Array<{
+        parameter: string
+        value: string
+        interpretation: string
+      }>
+    }
+  }
+  inputData?: {
+    laboratoryManualData?: string
+  }
   createdAt: string
   updatedAt: string
 }
@@ -79,6 +98,56 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const [activeTab, setActiveTab] = useState<TabType>('overview')
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [analysesLoading, setAnalysesLoading] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  // Carregar análises quando a aba é ativada
+  useEffect(() => {
+    if (activeTab === 'analyses' && patient) {
+      loadPatientAnalyses()
+    }
+  }, [activeTab, patient])
+
+  const loadPatientAnalyses = async () => {
+    if (!patient) return
+    
+    setAnalysesLoading(true)
+    try {
+      const response = await fetch(`/api/analyses?patientId=${patient._id}&limit=50`)
+      if (response.ok) {
+        const data = await response.json()
+        setAnalyses(data.data || [])
+      }
+    } catch (error) {
+      console.error('Erro ao carregar análises:', error)
+    } finally {
+      setAnalysesLoading(false)
+    }
+  }
+
+  const handleDeletePatient = async () => {
+    if (!patient) return
+    
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/patients/${patient._id}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        router.push('/patients')
+      } else {
+        const errorData = await response.json()
+        setError(errorData.error || 'Erro ao excluir paciente')
+      }
+    } catch (error) {
+      console.error('Erro ao excluir paciente:', error)
+      setError('Erro de conexão ao excluir paciente')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteModal(false)
+    }
+  }
 
   useEffect(() => {
     const fetchPatient = async () => {
@@ -238,6 +307,12 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
           >
             Nova Análise
+          </button>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Excluir
           </button>
         </div>
       </div>
@@ -667,72 +742,163 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         {activeTab === 'analyses' && (
           <div className="p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-semibold">Análises</h2>
+              <h2 className="text-xl font-semibold">Análises da Paciente</h2>
               <div className="flex gap-2">
                 <button
-                  onClick={() => router.push(`/patients/${patient._id}/analyses`)}
+                  onClick={loadPatientAnalyses}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+                >
+                  Atualizar
+                </button>
+                <Link 
+                  href="/analyses/laboratory"
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
-                  Ver Todas
-                </button>
-                <button
-                  onClick={() => router.push(`/patients/${patient._id}/analyses/new`)}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                >
                   Nova Análise
-                </button>
+                </Link>
               </div>
             </div>
 
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📊</div>
-              <h3 className="text-xl font-medium text-gray-900 mb-2">
-                Sistema de Análises Integrado
-              </h3>
-              <p className="text-gray-600 mb-6">
-                Análises laboratoriais, MTC, cronologia, medicina funcional e planos de tratamento integrados com IA.
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <div className="text-2xl mb-2">🔬</div>
-                  <h4 className="font-medium text-gray-900">Laboratorial</h4>
-                  <p className="text-sm text-gray-600">Análise inteligente de exames laboratoriais</p>
+            {analysesLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-2 text-gray-600">Carregando análises...</p>
+              </div>
+            ) : analyses.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">📊</div>
+                <h3 className="text-xl font-medium text-gray-900 mb-2">
+                  Nenhuma análise encontrada
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Ainda não foram realizadas análises para esta paciente.
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="text-2xl mb-2">🔬</div>
+                    <h4 className="font-medium text-gray-900">Laboratorial</h4>
+                    <p className="text-sm text-gray-600">Análise inteligente de exames</p>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-4">
+                    <div className="text-2xl mb-2">🏮</div>
+                    <h4 className="font-medium text-gray-900">MTC</h4>
+                    <p className="text-sm text-gray-600">Medicina Tradicional Chinesa</p>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-4">
+                    <div className="text-2xl mb-2">🧬</div>
+                    <h4 className="font-medium text-gray-900">Funcional</h4>
+                    <p className="text-sm text-gray-600">Medicina Funcional</p>
+                  </div>
                 </div>
-                <div className="bg-red-50 rounded-lg p-4">
-                  <div className="text-2xl mb-2">🏮</div>
-                  <h4 className="font-medium text-gray-900">MTC</h4>
-                  <p className="text-sm text-gray-600">Medicina Tradicional Chinesa</p>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <div className="text-2xl mb-2">🧬</div>
-                  <h4 className="font-medium text-gray-900">Funcional</h4>
-                  <p className="text-sm text-gray-600">Medicina Funcional Integrativa</p>
-                </div>
-                <div className="bg-yellow-50 rounded-lg p-4">
-                  <div className="text-2xl mb-2">📅</div>
-                  <h4 className="font-medium text-gray-900">Cronologia</h4>
-                  <p className="text-sm text-gray-600">Análise temporal de sintomas</p>
-                </div>
-                <div className="bg-green-50 rounded-lg p-4">
-                  <div className="text-2xl mb-2">💊</div>
-                  <h4 className="font-medium text-gray-900">Tratamento</h4>
-                  <p className="text-sm text-gray-600">Planos integrados personalizados</p>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="text-2xl mb-2">🤖</div>
-                  <h4 className="font-medium text-gray-900">IA Integrada</h4>
-                  <p className="text-sm text-gray-600">OpenAI, Anthropic, Google</p>
+
+                <Link
+                  href="/analyses/laboratory"
+                  className="inline-block px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
+                >
+                  Criar Primeira Análise
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Lista de Análises */}
+                {analyses.map((analysis) => (
+                  <div key={analysis._id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex-shrink-0">
+                          {analysis.type === 'laboratory' && <span className="text-2xl">🔬</span>}
+                          {analysis.type === 'tcm' && <span className="text-2xl">🏮</span>}
+                          {analysis.type === 'chronology' && <span className="text-2xl">📅</span>}
+                          {analysis.type === 'ifm' && <span className="text-2xl">🧬</span>}
+                          {analysis.type === 'treatment' && <span className="text-2xl">💊</span>}
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {analysis.type === 'laboratory' && 'Análise Laboratorial'}
+                            {analysis.type === 'tcm' && 'Medicina Tradicional Chinesa'}
+                            {analysis.type === 'chronology' && 'Cronologia'}
+                            {analysis.type === 'ifm' && 'Matriz IFM'}
+                            {analysis.type === 'treatment' && 'Plano de Tratamento'}
+                          </h3>
+                          <p className="text-sm text-gray-500">
+                            {new Date(analysis.createdAt).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit', 
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          analysis.status === 'completed' 
+                            ? 'bg-green-100 text-green-800' 
+                            : analysis.status === 'processing'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : analysis.status === 'error'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {analysis.status === 'completed' && 'Concluída'}
+                          {analysis.status === 'processing' && 'Processando'}
+                          {analysis.status === 'pending' && 'Pendente'}
+                          {analysis.status === 'error' && 'Erro'}
+                        </span>
+                        <button 
+                          onClick={() => router.push(`/analyses/${analysis._id}`)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          Ver detalhes →
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Resumo da análise */}
+                    {analysis.result?.laboratoryAnalysis?.interpretation && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Resumo:</h4>
+                        <p className="text-sm text-gray-600 line-clamp-3">
+                          {analysis.result.laboratoryAnalysis.interpretation.substring(0, 200)}...
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Recomendações */}
+                    {analysis.result?.laboratoryAnalysis?.recommendations && analysis.result.laboratoryAnalysis.recommendations.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm font-medium text-gray-700 mb-2">Principais Recomendações:</h4>
+                        <ul className="space-y-1">
+                          {analysis.result.laboratoryAnalysis.recommendations.slice(0, 2).map((rec: string, index: number) => (
+                            <li key={index} className="flex items-start text-sm text-gray-600">
+                              <span className="text-green-500 mr-2 mt-0.5">•</span>
+                              <span className="line-clamp-1">{rec}</span>
+                            </li>
+                          ))}
+                          {analysis.result.laboratoryAnalysis.recommendations.length > 2 && (
+                            <li className="text-sm text-gray-500 ml-4">
+                              +{analysis.result.laboratoryAnalysis.recommendations.length - 2} recomendações adicionais
+                            </li>
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Ações */}
+                <div className="text-center pt-6">
+                  <Link
+                    href="/analyses/laboratory"
+                    className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                  >
+                    Realizar Nova Análise
+                  </Link>
                 </div>
               </div>
-
-              <button
-                onClick={() => router.push(`/patients/${patient._id}/analyses/new`)}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-              >
-                Criar Primeira Análise
-              </button>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -742,6 +908,59 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         Criado em: {formatDateBR(patient.createdAt)} | 
         Atualizado em: {formatDateBR(patient.updatedAt)}
       </div>
+
+      {/* Modal de Confirmação de Exclusão */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 15.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Confirmar Exclusão
+                </h3>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-600">
+                Tem certeza de que deseja excluir a paciente <strong>{patient.name}</strong>?
+              </p>
+              <p className="text-sm text-red-600 mt-2">
+                ⚠️ Esta ação não pode ser desfeita e todas as análises associadas serão perdidas.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeletePatient}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 flex items-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Excluindo...
+                  </>
+                ) : (
+                  'Confirmar Exclusão'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 

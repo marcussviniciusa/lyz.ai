@@ -4,6 +4,7 @@ import { generatePrompt } from './prompts';
 import Analysis from '@/models/Analysis';
 import Patient from '@/models/Patient';
 import User from '@/models/User';
+import mongoose from 'mongoose';
 
 export interface AnalysisResult {
   id: string;
@@ -37,6 +38,9 @@ export class AnalysisService {
     const startTime = Date.now();
     
     try {
+      // Inicializar serviços
+      await this.initialize();
+      
       // Buscar dados da paciente
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
@@ -46,12 +50,17 @@ export class AnalysisService {
 
       // Gerar contexto RAG se habilitado
       let ragContext = '';
-      if (analysisConfig.ragEnabled) {
-        ragContext = await this.ragService.generateContext(
-          `exames laboratoriais ${patient.mainSymptoms?.join(' ')} medicina funcional`,
-          'laboratory',
-          this.companyId
-        );
+      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+        try {
+          ragContext = await this.ragService.generateContext(
+            `exames laboratoriais ${patient.mainSymptoms?.join(' ')} medicina funcional`,
+            'laboratory',
+            this.companyId
+          );
+        } catch (error) {
+          console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
+          ragContext = '';
+        }
       }
 
       // Executar análise usando configurações globais
@@ -60,16 +69,35 @@ export class AnalysisService {
         { patientData: patient, examData, ragContext }
       );
 
+      const processingTime = Date.now() - startTime;
+
       // Salvar análise no banco
       const analysis = new Analysis({
-        patientId: this.patientId,
-        userId: this.userId,
-        companyId: this.companyId,
+        patient: this.patientId,
+        professional: this.userId,
+        company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
         type: 'laboratory',
-        input: { examData },
-        output: { content },
         status: 'completed',
-        processingTime: Date.now() - startTime,
+        inputData: {
+          laboratoryManualData: JSON.stringify(examData)
+        },
+        result: {
+          rawOutput: content,
+          laboratoryAnalysis: {
+            interpretation: content,
+            alteredValues: [],
+            functionalMedicineComparison: [],
+            recommendations: []
+          }
+        },
+        aiMetadata: {
+          provider: analysisConfig.provider,
+          model: analysisConfig.model,
+          promptVersion: '1.0',
+          tokensUsed: 0,
+          processingTime,
+          cost: 0
+        }
       });
 
       await analysis.save();
@@ -80,7 +108,7 @@ export class AnalysisService {
         content,
         status: 'completed',
         createdAt: analysis.createdAt,
-        processingTime: Date.now() - startTime,
+        processingTime,
       };
 
     } catch (error) {
@@ -88,14 +116,25 @@ export class AnalysisService {
       
       // Salvar erro no banco
       const analysis = new Analysis({
-        patientId: this.patientId,
-        userId: this.userId,
-        companyId: this.companyId,
+        patient: this.patientId,
+        professional: this.userId,
+        company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
         type: 'laboratory',
-        input: { examData },
-        output: { error: error instanceof Error ? error.message : 'Erro desconhecido' },
         status: 'error',
-        processingTime: Date.now() - startTime,
+        inputData: {
+          laboratoryManualData: JSON.stringify(examData)
+        },
+        result: {
+          rawOutput: error instanceof Error ? error.message : 'Erro desconhecido'
+        },
+        aiMetadata: {
+          provider: 'openai',
+          model: 'gpt-4',
+          promptVersion: '1.0',
+          tokensUsed: 0,
+          processingTime: Date.now() - startTime,
+          cost: 0
+        }
       });
 
       await analysis.save();
@@ -111,6 +150,9 @@ export class AnalysisService {
     const startTime = Date.now();
     
     try {
+      // Inicializar serviços
+      await this.initialize();
+      
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
 
@@ -119,12 +161,17 @@ export class AnalysisService {
 
       // Gerar contexto RAG se habilitado
       let ragContext = '';
-      if (analysisConfig.ragEnabled) {
-        ragContext = await this.ragService.generateContext(
-          `medicina tradicional chinesa ${patient.mainSymptoms?.join(' ')} acupuntura fitoterapia`,
-          'tcm',
-          this.companyId
-        );
+      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+        try {
+          ragContext = await this.ragService.generateContext(
+            `medicina tradicional chinesa ${patient.mainSymptoms?.join(' ')} acupuntura fitoterapia`,
+            'tcm',
+            this.companyId
+          );
+        } catch (error) {
+          console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
+          ragContext = '';
+        }
       }
 
       // Executar análise usando configurações globais
@@ -133,15 +180,37 @@ export class AnalysisService {
         { patientData: patient, examData: tcmData, ragContext }
       );
 
+      const processingTime = Date.now() - startTime;
+
       const analysis = new Analysis({
-        patientId: this.patientId,
-        userId: this.userId,
-        companyId: this.companyId,
+        patient: this.patientId,
+        professional: this.userId,
+        company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
         type: 'tcm',
-        input: { tcmData },
-        output: { content },
         status: 'completed',
-        processingTime: Date.now() - startTime,
+        inputData: {
+          tongueObservation: tcmData.lingualObservation,
+          patterns: tcmData.patterns || '',
+          treatmentPrinciples: tcmData.treatmentPrinciples || '',
+          additionalObservations: tcmData.additionalNotes || ''
+        },
+        result: {
+          rawOutput: content,
+          tcmAnalysis: {
+            energeticDiagnosis: content, // A IA deveria retornar estruturado, mas por enquanto deixo assim
+            phytotherapyRecommendations: [],
+            acupunctureRecommendations: { points: [], frequency: '', duration: '' },
+            lifestyleRecommendations: []
+          }
+        },
+        aiMetadata: {
+          provider: analysisConfig.provider,
+          model: analysisConfig.model,
+          promptVersion: '1.0',
+          tokensUsed: 0,
+          processingTime,
+          cost: 0
+        }
       });
 
       await analysis.save();
@@ -152,7 +221,25 @@ export class AnalysisService {
         content,
         status: 'completed',
         createdAt: analysis.createdAt,
-        processingTime: Date.now() - startTime,
+        processingTime,
+        // Estrutura esperada pelo frontend
+        analysis: {
+          energeticDiagnosis: content,
+          herbalRecommendations: [],
+          acupuncturePoints: [],
+          generalRecommendations: [
+            'Mantenha regularidade nos horários de sono',
+            'Pratique exercícios leves e regulares',
+            'Alimente-se de forma equilibrada',
+            'Evite alimentos muito frios ou crus'
+          ]
+        },
+        aiMetadata: {
+          provider: analysisConfig.provider,
+          model: analysisConfig.model,
+          totalTokens: 0,
+          cost: 0
+        }
       };
 
     } catch (error) {
@@ -168,12 +255,15 @@ export class AnalysisService {
     const startTime = Date.now();
     
     try {
+      // Inicializar serviços
+      await this.initialize();
+      
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
 
       // Buscar análises anteriores
       const previousAnalyses = await Analysis.find({
-        patientId: this.patientId,
+        patient: this.patientId,
         status: 'completed',
         type: { $in: ['laboratory', 'tcm'] }
       }).sort({ createdAt: 1 });
@@ -183,12 +273,17 @@ export class AnalysisService {
 
       // Gerar contexto RAG se habilitado
       let ragContext = '';
-      if (analysisConfig.ragEnabled) {
-        ragContext = await this.ragService.generateContext(
-          `cronologia saúde feminina ciclo menstrual ${patient.mainSymptoms?.join(' ')}`,
-          'chronology',
-          this.companyId
-        );
+      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+        try {
+          ragContext = await this.ragService.generateContext(
+            `cronologia saúde feminina ciclo menstrual ${patient.mainSymptoms?.join(' ')}`,
+            'chronology',
+            this.companyId
+          );
+        } catch (error) {
+          console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
+          ragContext = '';
+        }
       }
 
       // Executar análise usando configurações globais
@@ -197,15 +292,33 @@ export class AnalysisService {
         { patientData: patient, previousAnalyses, ragContext }
       );
 
+      const processingTime = Date.now() - startTime;
+
       const analysis = new Analysis({
-        patientId: this.patientId,
-        userId: this.userId,
-        companyId: this.companyId,
+        patient: this.patientId,
+        professional: this.userId,
+        company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
         type: 'chronology',
-        input: { previousAnalysesIds: previousAnalyses.map(a => a._id) },
-        output: { content },
         status: 'completed',
-        processingTime: Date.now() - startTime,
+        inputData: {
+          // Para cronologia não precisamos de dados de entrada específicos
+        },
+        result: {
+          rawOutput: content,
+          chronologyAnalysis: {
+            timeline: [],
+            patterns: [],
+            criticalMoments: []
+          }
+        },
+        aiMetadata: {
+          provider: analysisConfig.provider,
+          model: analysisConfig.model,
+          promptVersion: '1.0',
+          tokensUsed: 0,
+          processingTime,
+          cost: 0
+        }
       });
 
       await analysis.save();
@@ -216,7 +329,7 @@ export class AnalysisService {
         content,
         status: 'completed',
         createdAt: analysis.createdAt,
-        processingTime: Date.now() - startTime,
+        processingTime,
       };
 
     } catch (error) {
@@ -232,11 +345,14 @@ export class AnalysisService {
     const startTime = Date.now();
     
     try {
+      // Inicializar serviços
+      await this.initialize();
+      
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
 
       const previousAnalyses = await Analysis.find({
-        patientId: this.patientId,
+        patient: this.patientId,
         status: 'completed',
         type: { $in: ['laboratory', 'tcm', 'chronology'] }
       }).sort({ createdAt: 1 });
@@ -246,12 +362,17 @@ export class AnalysisService {
 
       // Gerar contexto RAG se habilitado
       let ragContext = '';
-      if (analysisConfig.ragEnabled) {
-        ragContext = await this.ragService.generateContext(
-          `medicina funcional matriz IFM sistemas ${patient.mainSymptoms?.join(' ')}`,
-          'ifm',
-          this.companyId
-        );
+      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+        try {
+          ragContext = await this.ragService.generateContext(
+            `medicina funcional matriz IFM sistemas ${patient.mainSymptoms?.join(' ')}`,
+            'ifm',
+            this.companyId
+          );
+        } catch (error) {
+          console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
+          ragContext = '';
+        }
       }
 
       // Executar análise usando configurações globais
@@ -260,15 +381,34 @@ export class AnalysisService {
         { patientData: patient, previousAnalyses, ragContext }
       );
 
+      const processingTime = Date.now() - startTime;
+
       const analysis = new Analysis({
-        patientId: this.patientId,
-        userId: this.userId,
-        companyId: this.companyId,
+        patient: this.patientId,
+        professional: this.userId,
+        company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
         type: 'ifm',
-        input: { previousAnalysesIds: previousAnalyses.map(a => a._id) },
-        output: { content },
         status: 'completed',
-        processingTime: Date.now() - startTime,
+        inputData: {
+          // Para IFM não precisamos de dados de entrada específicos
+        },
+        result: {
+          rawOutput: content,
+          ifmAnalysis: {
+            systemsAssessment: [],
+            rootCauses: [],
+            systemicConnections: [],
+            treatmentPriorities: []
+          }
+        },
+        aiMetadata: {
+          provider: analysisConfig.provider,
+          model: analysisConfig.model,
+          promptVersion: '1.0',
+          tokensUsed: 0,
+          processingTime,
+          cost: 0
+        }
       });
 
       await analysis.save();
@@ -279,7 +419,7 @@ export class AnalysisService {
         content,
         status: 'completed',
         createdAt: analysis.createdAt,
-        processingTime: Date.now() - startTime,
+        processingTime,
       };
 
     } catch (error) {
@@ -295,6 +435,9 @@ export class AnalysisService {
     const startTime = Date.now();
     
     try {
+      // Inicializar serviços
+      await this.initialize();
+      
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
 
@@ -302,7 +445,7 @@ export class AnalysisService {
       if (!user) throw new Error('Usuário não encontrado');
 
       const previousAnalyses = await Analysis.find({
-        patientId: this.patientId,
+        patient: this.patientId,
         status: 'completed',
         type: { $in: ['laboratory', 'tcm', 'chronology', 'ifm'] }
       }).sort({ createdAt: 1 });
@@ -312,12 +455,17 @@ export class AnalysisService {
 
       // Gerar contexto RAG se habilitado
       let ragContext = '';
-      if (analysisConfig.ragEnabled) {
-        ragContext = await this.ragService.generateContext(
-          `plano tratamento ${user.specialization} ${patient.mainSymptoms?.join(' ')}`,
-          'treatmentPlan',
-          this.companyId
-        );
+      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+        try {
+          ragContext = await this.ragService.generateContext(
+            `plano tratamento ${user.specialization} ${patient.mainSymptoms?.join(' ')}`,
+            'treatmentPlan',
+            this.companyId
+          );
+        } catch (error) {
+          console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
+          ragContext = '';
+        }
       }
 
       // Executar análise usando configurações globais
@@ -326,18 +474,38 @@ export class AnalysisService {
         { patientData: patient, previousAnalyses, ragContext }
       );
 
+      const processingTime = Date.now() - startTime;
+
       const analysis = new Analysis({
-        patientId: this.patientId,
-        userId: this.userId,
-        companyId: this.companyId,
-        type: 'treatmentPlan',
-        input: { 
-          previousAnalysesIds: previousAnalyses.map(a => a._id),
-          professionalType: user.specialization 
-        },
-        output: { content },
+        patient: this.patientId,
+        professional: this.userId,
+        company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
+        type: 'treatment',
         status: 'completed',
-        processingTime: Date.now() - startTime,
+        inputData: {
+          professionalType: user.specialization || 'outro'
+        },
+        result: {
+          rawOutput: content,
+          treatmentPlan: {
+            executiveSummary: content,
+            diagnosticSynthesis: '',
+            therapeuticObjectives: [],
+            interventions: [],
+            followUpSchedule: [],
+            expectedOutcomes: [],
+            contraindications: [],
+            patientGuidelines: []
+          }
+        },
+        aiMetadata: {
+          provider: analysisConfig.provider,
+          model: analysisConfig.model,
+          promptVersion: '1.0',
+          tokensUsed: 0,
+          processingTime,
+          cost: 0
+        }
       });
 
       await analysis.save();
@@ -348,7 +516,7 @@ export class AnalysisService {
         content,
         status: 'completed',
         createdAt: analysis.createdAt,
-        processingTime: Date.now() - startTime,
+        processingTime,
       };
 
     } catch (error) {
@@ -404,17 +572,17 @@ export class AnalysisService {
    */
   async getPatientAnalyses(): Promise<AnalysisResult[]> {
     const analyses = await Analysis.find({
-      patientId: this.patientId,
+      patient: this.patientId,
       status: 'completed'
     }).sort({ createdAt: -1 });
 
     return analyses.map(analysis => ({
       id: analysis._id.toString(),
       type: analysis.type as any,
-      content: analysis.output?.content || '',
+      content: analysis.result?.rawOutput || '',
       status: analysis.status as any,
       createdAt: analysis.createdAt,
-      processingTime: analysis.processingTime,
+      processingTime: analysis.aiMetadata?.processingTime,
     }));
   }
 

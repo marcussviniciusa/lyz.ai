@@ -34,6 +34,12 @@ interface GlobalAIConfig {
     anthropic?: string
     google?: string
   }
+  googleVision: {
+    enabled: boolean
+    projectId?: string
+    clientEmail?: string
+    privateKey?: string
+  }
   laboratory: AnalysisConfig
   tcm: AnalysisConfig
   chronology: AnalysisConfig
@@ -316,6 +322,100 @@ export default function GlobalAIConfigPage() {
                     Obtenha sua chave em: https://makersuite.google.com/app/apikey
                   </p>
                 </div>
+              </div>
+
+              {/* Configuração Google Vision OCR */}
+              <div className="border-t pt-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="google-vision-enabled"
+                      checked={config?.googleVision?.enabled || false}
+                      onCheckedChange={(checked) => setConfig(prev => prev ? {
+                        ...prev,
+                        googleVision: { ...prev.googleVision, enabled: checked }
+                      } : prev)}
+                    />
+                    <Label htmlFor="google-vision-enabled" className="flex items-center gap-2">
+                      <span className="text-red-600">●</span>
+                      <span className="font-semibold">Google Vision OCR</span>
+                    </Label>
+                  </div>
+                  <Badge variant={config?.googleVision?.enabled ? "default" : "secondary"}>
+                    {config?.googleVision?.enabled ? "Ativo" : "Inativo"}
+                  </Badge>
+                </div>
+                
+                <p className="text-sm text-gray-600 mb-4">
+                  Configure o Google Cloud Vision API para processamento OCR automático de exames laboratoriais
+                </p>
+
+                {config?.googleVision?.enabled && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="google-project-id">Project ID</Label>
+                      <Input
+                        id="google-project-id"
+                        placeholder="meu-projeto-gcp"
+                        value={config?.googleVision?.projectId || ''}
+                        onChange={(e) => setConfig(prev => prev ? {
+                          ...prev,
+                          googleVision: { ...prev.googleVision, projectId: e.target.value }
+                        } : prev)}
+                      />
+                      <p className="text-xs text-gray-500">
+                        ID do seu projeto no Google Cloud Platform
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="google-client-email">Service Account Email</Label>
+                      <Input
+                        id="google-client-email"
+                        placeholder="service-account@projeto.iam.gserviceaccount.com"
+                        value={config?.googleVision?.clientEmail || ''}
+                        onChange={(e) => setConfig(prev => prev ? {
+                          ...prev,
+                          googleVision: { ...prev.googleVision, clientEmail: e.target.value }
+                        } : prev)}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Email da service account com permissões do Vision API
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="google-private-key">Private Key</Label>
+                      <Textarea
+                        id="google-private-key"
+                        placeholder="-----BEGIN PRIVATE KEY-----&#10;...&#10;-----END PRIVATE KEY-----"
+                        rows={4}
+                        value={config?.googleVision?.privateKey || ''}
+                        onChange={(e) => setConfig(prev => prev ? {
+                          ...prev,
+                          googleVision: { ...prev.googleVision, privateKey: e.target.value }
+                        } : prev)}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Chave privada da service account (incluindo -----BEGIN PRIVATE KEY----- e -----END PRIVATE KEY-----)
+                      </p>
+                    </div>
+
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Google Vision API:</strong>
+                        <ul className="mt-2 space-y-1 text-sm">
+                          <li>• Habilite a Vision API no seu projeto GCP</li>
+                          <li>• Crie uma service account com role "Cloud Vision AI Service Agent"</li>
+                          <li>• Baixe a chave JSON e extraia os valores acima</li>
+                          <li>• Primeiras 1.000 requisições/mês são gratuitas</li>
+                          <li>• Custo: ~$1.50 por 1.000 documentos processados</li>
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
               </div>
 
               <Alert>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Calendar, Clock, Plus, ArrowLeft, AlertCircle, Trash2, Play, Save
@@ -44,19 +44,10 @@ interface ContraceptiveHistory {
   sideEffects: string;
 }
 
-interface SymptomEvolution {
-  symptom: string;
-  firstAppearance: string;
-  progression: 'improving' | 'stable' | 'worsening' | 'fluctuating';
-  triggers: string[];
-  relievingFactors: string[];
-}
-
 interface TreatmentHistory {
   startDate: string;
   endDate: string;
   treatment: string;
-  practitioner: string;
   effectiveness: 'very-effective' | 'effective' | 'minimal' | 'ineffective' | 'worsened';
   sideEffects: string;
 }
@@ -69,13 +60,52 @@ interface ChronologyData {
     irregularities: MenstrualIrregularity[];
     contraceptiveHistory: ContraceptiveHistory[];
   };
-  symptomEvolution: SymptomEvolution[];
   treatmentHistory: TreatmentHistory[];
 }
+
+// Função para converter markdown básico em HTML
+const renderMarkdown = (markdown: string) => {
+  if (!markdown) return '';
+  
+  let html = markdown
+    // Remove múltiplas quebras de linha consecutivas
+    .replace(/\n{3,}/g, '\n\n')
+    // Headers (ordem importa - 4 hashtags primeiro)
+    .replace(/^#### (.*$)/gim, '<h4 class="text-base font-medium mb-3 mt-6 text-gray-800">$1</h4>')
+    .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mb-4 mt-8 text-gray-900">$1</h3>')
+    // Bold
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+    // Listas - processa linhas que começam com "• " ou "- "
+    .replace(/^[•\-] (.+)$/gim, '<li class="ml-6 mb-2 list-disc">$1</li>')
+    // Agrupa listas consecutivas em <ul>
+    .replace(/(<li[^>]*>.*?<\/li>\s*)+/g, (match) => {
+      return `<ul class="mb-4 space-y-1">${match}</ul>`;
+    })
+    // Remove linhas que contêm apenas "#" 
+    .replace(/^#\s*$/gm, '')
+    // Parágrafos - divide por dupla quebra de linha
+    .split('\n\n')
+    .map(paragraph => {
+      paragraph = paragraph.trim();
+      // Se já contém tags HTML (headers, listas), não envolve em <p>
+      if (paragraph.includes('<h') || paragraph.includes('<ul') || paragraph.includes('<li') || !paragraph) {
+        return paragraph;
+      }
+      // Senão, envolve em parágrafo
+      return `<p class="mb-4 text-gray-800 leading-relaxed">${paragraph.replace(/\n/g, '<br/>')}</p>`;
+    })
+    .filter(paragraph => paragraph.trim() !== '') // Remove parágrafos vazios
+    .join('\n');
+  
+  return html;
+};
 
 export default function ChronologyAnalysisPage() {
   const { status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const preSelectedPatientId = searchParams.get('patientId');
+  
   const [step, setStep] = useState(1);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -87,22 +117,52 @@ export default function ChronologyAnalysisPage() {
       irregularities: [],
       contraceptiveHistory: []
     },
-    symptomEvolution: [],
     treatmentHistory: []
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
-    timeline: Array<{
-      date: string;
-      event: string;
-      category: string;
-      impact: string;
-    }>;
-    patterns: Array<{
-      pattern: string;
-      significance: string;
-    }>;
-    recommendations: string[];
+    id: string;
+    type: string;
+    content: string;
+    status: string;
+    createdAt: Date;
+    processingTime?: number;
+    analysis?: {
+      consolidatedTimeline?: Array<{
+        period: string;
+        phase: string;
+        keyEvents: string[];
+      }>;
+      patterns: {
+        cyclicalPatterns?: Array<{
+          pattern: string;
+          frequency: string;
+          description: string;
+        }>;
+        triggerPatterns?: Array<{
+          trigger: string;
+          timeframe: string;
+          mechanism: string;
+        }>;
+      };
+      criticalMoments?: Array<{
+        event: string;
+        date: string;
+        impact: string;
+        recommendedIntervention: string;
+      }>;
+      temporalPrognosis: {
+        shortTerm: string;
+        mediumTerm: string;
+        longTerm: string;
+      };
+      chronologicalSynthesis: string;
+    };
+    aiMetadata?: {
+      model: string;
+      totalTokens: number;
+      cost: number;
+    };
   } | null>(null);
 
   useEffect(() => {
@@ -114,6 +174,58 @@ export default function ChronologyAnalysisPage() {
   useEffect(() => {
     fetchPatients();
   }, []);
+
+  // Pré-selecionar paciente se fornecido via URL
+  useEffect(() => {
+    if (preSelectedPatientId && patients.length > 0) {
+      const patient = patients.find(p => p._id === preSelectedPatientId);
+      if (patient) {
+        setSelectedPatient(patient);
+        autoFillMenstrualData(patient);
+        setStep(2); // Ir direto para o step de inserção de dados
+      }
+    }
+  }, [preSelectedPatientId, patients]);
+
+  // Auto-preencher dados menstruais do cadastro
+  const autoFillMenstrualData = (patient: any) => {
+    if (patient.menstrualHistory) {
+      // Calcular data da menarca baseada na idade atual e idade da menarca
+      let menarcheDate = '';
+      if (patient.menstrualHistory.menarche && patient.age) {
+        const currentYear = new Date().getFullYear();
+        const menarcheYear = currentYear - (patient.age - patient.menstrualHistory.menarche);
+        menarcheDate = `${menarcheYear}-01-01`; // Usar 1º de janeiro como aproximação
+      }
+
+      // Criar descrição do padrão de ciclo
+      let cyclePattern = '';
+      if (patient.menstrualHistory.cycleLength && patient.menstrualHistory.menstruationLength) {
+        const status = patient.menstrualHistory.menopausalStatus;
+        const contraceptive = patient.menstrualHistory.contraceptiveUse;
+        
+        if (status === 'post') {
+          cyclePattern = 'Pós-menopausa - ciclos ausentes';
+        } else if (status === 'peri') {
+          cyclePattern = `Perimenopausa - ciclos irregulares (anteriormente ${patient.menstrualHistory.cycleLength} dias)`;
+        } else {
+          cyclePattern = `Regular ${patient.menstrualHistory.cycleLength} dias, menstruação ${patient.menstrualHistory.menstruationLength} dias`;
+          if (contraceptive) {
+            cyclePattern += ` (usando ${contraceptive})`;
+          }
+        }
+      }
+
+      setChronologyData(prev => ({
+        ...prev,
+        menstrualHistory: {
+          ...prev.menstrualHistory,
+          menarche: menarcheDate,
+          cyclePattern: cyclePattern || prev.menstrualHistory.cyclePattern
+        }
+      }));
+    }
+  };
 
   const fetchPatients = async () => {
     try {
@@ -128,30 +240,61 @@ export default function ChronologyAnalysisPage() {
   };
 
   const handleSubmit = async () => {
-    if (!selectedPatient) return;
+    if (!selectedPatient) {
+      alert('Por favor, selecione um paciente primeiro.');
+      return;
+    }
 
     setLoading(true);
+
     try {
-      const response = await fetch('/api/analysis/chronology', {
+      const response = await fetch('/api/analyses/run', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          analysisType: 'chronology',
           patientId: selectedPatient._id,
-          chronologyData
+          data: chronologyData
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setResult(data);
-        setStep(5);
-      } else {
-        console.error('Erro na análise');
+      if (!response.ok) {
+        throw new Error('Failed to generate analysis');
       }
+
+      const analysisResult = await response.json();
+      console.log('🔍 Raw API Response:', analysisResult);
+      console.log('🔍 Has data?', !!analysisResult.data);
+      console.log('🔍 Data structure:', analysisResult.data);
+      console.log('🔍 Analysis in data?', !!analysisResult.data?.analysis);
+      console.log('🔍 Result object:', analysisResult.data?.result);
+      
+      // Extrair os dados corretos da resposta da API
+      let processedResult;
+      if (analysisResult.data?.result) {
+        // Se os dados estão em data.result
+        processedResult = analysisResult.data.result;
+      } else if (analysisResult.data?.analysis) {
+        // Se os dados estão em data.analysis
+        processedResult = analysisResult.data;
+      } else if (analysisResult.data) {
+        // Se os dados estão diretamente em data
+        processedResult = analysisResult.data;
+      } else {
+        // Fallback para a estrutura original
+        processedResult = analysisResult;
+      }
+      
+      console.log('🔍 Processed result:', processedResult);
+      console.log('🔍 Analysis object:', processedResult.analysis);
+      
+      setResult(processedResult);
+      setStep(4);
     } catch (error) {
-      console.error('Erro ao processar análise:', error);
+      console.error('Error generating chronology analysis:', error);
+      alert('Erro ao gerar análise cronológica. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -184,19 +327,6 @@ export default function ChronologyAnalysisPage() {
       lifeEvents: prev.lifeEvents.map((event, i) => 
         i === index ? { ...event, [field]: value } : event
       )
-    }));
-  };
-
-  const addSymptomEvolution = () => {
-    setChronologyData(prev => ({
-      ...prev,
-      symptomEvolution: [...prev.symptomEvolution, {
-        symptom: '',
-        firstAppearance: '',
-        progression: 'stable',
-        triggers: [],
-        relievingFactors: []
-      }]
     }));
   };
 
@@ -235,13 +365,13 @@ export default function ChronologyAnalysisPage() {
       {/* Progress */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className={`flex items-center ${i < 5 ? 'flex-1' : ''}`}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className={`flex items-center ${i < 4 ? 'flex-1' : ''}`}>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
                 ${step >= i ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
                 {i}
               </div>
-              {i < 5 && (
+              {i < 4 && (
                 <div className={`flex-1 h-1 mx-4 
                   ${step > i ? 'bg-blue-600' : 'bg-gray-200'}`} />
               )}
@@ -251,7 +381,6 @@ export default function ChronologyAnalysisPage() {
         <div className="flex justify-between text-sm text-gray-600">
           <span>Paciente</span>
           <span>Eventos</span>
-          <span>Sintomas</span>
           <span>Tratamentos</span>
           <span>Resultado</span>
         </div>
@@ -269,7 +398,10 @@ export default function ChronologyAnalysisPage() {
                   ${selectedPatient?._id === patient._id 
                     ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-200 hover:border-gray-300'}`}
-                onClick={() => setSelectedPatient(patient)}
+                onClick={() => {
+                  setSelectedPatient(patient);
+                  autoFillMenstrualData(patient);
+                }}
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -451,135 +583,8 @@ export default function ChronologyAnalysisPage() {
         </div>
       )}
 
-      {/* Step 3: Evolução de Sintomas */}
+      {/* Step 3: Histórico de Tratamentos */}
       {step === 3 && (
-        <div className="bg-white rounded-lg shadow-sm border p-6">
-          <h2 className="text-xl font-semibold mb-6 flex items-center">
-            <Clock className="w-5 h-5 mr-2" />
-            Evolução de Sintomas
-          </h2>
-
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-gray-600">Registre como os sintomas evoluíram ao longo do tempo</p>
-            <button
-              onClick={addSymptomEvolution}
-              className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Adicionar Sintoma
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            {chronologyData.symptomEvolution.map((symptom, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium text-gray-700">Sintoma {index + 1}</span>
-                  <button
-                    onClick={() => setChronologyData(prev => ({
-                      ...prev,
-                      symptomEvolution: prev.symptomEvolution.filter((_, i) => i !== index)
-                    }))}
-                    className="text-red-600 hover:text-red-800"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Sintoma</label>
-                    <input
-                      type="text"
-                      value={symptom.symptom}
-                      onChange={(e) => setChronologyData(prev => ({
-                        ...prev,
-                        symptomEvolution: prev.symptomEvolution.map((s, i) => 
-                          i === index ? { ...s, symptom: e.target.value } : s
-                        )
-                      }))}
-                      placeholder="Nome do sintoma"
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Primeira Aparição</label>
-                    <input
-                      type="date"
-                      value={symptom.firstAppearance}
-                      onChange={(e) => setChronologyData(prev => ({
-                        ...prev,
-                        symptomEvolution: prev.symptomEvolution.map((s, i) => 
-                          i === index ? { ...s, firstAppearance: e.target.value } : s
-                        )
-                      }))}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Progressão</label>
-                    <select
-                      value={symptom.progression}
-                      onChange={(e) => setChronologyData(prev => ({
-                        ...prev,
-                        symptomEvolution: prev.symptomEvolution.map((s, i) => 
-                          i === index ? { ...s, progression: e.target.value as any } : s
-                        )
-                      }))}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="improving">Melhorando</option>
-                      <option value="stable">Estável</option>
-                      <option value="worsening">Piorando</option>
-                      <option value="fluctuating">Flutuante</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Gatilhos (separados por vírgula)</label>
-                    <input
-                      type="text"
-                      value={symptom.triggers.join(', ')}
-                      onChange={(e) => setChronologyData(prev => ({
-                        ...prev,
-                        symptomEvolution: prev.symptomEvolution.map((s, i) => 
-                          i === index ? { ...s, triggers: e.target.value.split(',').map(t => t.trim()) } : s
-                        )
-                      }))}
-                      placeholder="Stress, menstruação, alimentos..."
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-
-            {chronologyData.symptomEvolution.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <AlertCircle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p>Nenhum sintoma adicionado. Clique em "Adicionar Sintoma" para começar.</p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between mt-8">
-            <button
-              onClick={() => setStep(2)}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Voltar
-            </button>
-            <button
-              onClick={() => setStep(4)}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Continuar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Histórico de Tratamentos */}
-      {step === 4 && (
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-xl font-semibold mb-6">Histórico de Tratamentos</h2>
 
@@ -592,7 +597,6 @@ export default function ChronologyAnalysisPage() {
                   startDate: '',
                   endDate: '',
                   treatment: '',
-                  practitioner: '',
                   effectiveness: 'minimal',
                   sideEffects: ''
                 }]
@@ -665,21 +669,6 @@ export default function ChronologyAnalysisPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Profissional</label>
-                    <input
-                      type="text"
-                      value={treatment.practitioner}
-                      onChange={(e) => setChronologyData(prev => ({
-                        ...prev,
-                        treatmentHistory: prev.treatmentHistory.map((t, i) => 
-                          i === index ? { ...t, practitioner: e.target.value } : t
-                        )
-                      }))}
-                      placeholder="Nome do profissional"
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Efetividade</label>
                     <select
                       value={treatment.effectiveness}
@@ -727,7 +716,7 @@ export default function ChronologyAnalysisPage() {
 
           <div className="flex justify-between mt-8">
             <button
-              onClick={() => setStep(3)}
+              onClick={() => setStep(2)}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
               Voltar
@@ -753,180 +742,73 @@ export default function ChronologyAnalysisPage() {
         </div>
       )}
 
-      {/* Step 5: Resultado */}
-      {step === 5 && result && (
+      {/* Step 4: Resultado */}
+      {step === 4 && result && (
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-xl font-semibold mb-6">Resultado da Análise Cronológica</h2>
           
-          <div className="space-y-8">
-            {/* Timeline Consolidada */}
-            <div className="border-l-4 border-blue-500 pl-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Timeline Consolidada</h3>
-              <div className="space-y-4">
-                {result.analysis.consolidatedTimeline?.map((period: any, index: number) => (
-                  <div key={index} className="bg-blue-50 p-4 rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-medium text-blue-900">{period.period}</h4>
-                      <span className="text-sm text-blue-700 bg-blue-100 px-2 py-1 rounded">{period.phase}</span>
-                    </div>
-                    {period.keyEvents.length > 0 && (
-                      <div className="mb-2">
-                        <span className="text-sm font-medium text-blue-800">Eventos Chave:</span>
-                        <ul className="text-sm text-blue-700 ml-4">
-                          {period.keyEvents.map((event: string, i: number) => (
-                            <li key={i}>• {event}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ))}
+          {result.content ? (
+            <div className="space-y-6">
+              {/* Conteúdo Principal */}
+              <div className="prose max-w-none">
+                <div 
+                  className="text-gray-800 leading-relaxed"
+                  dangerouslySetInnerHTML={{ 
+                    __html: renderMarkdown(result.content) 
+                  }}
+                />
               </div>
-            </div>
 
-            {/* Padrões Identificados */}
-            <div className="border-l-4 border-green-500 pl-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Padrões Identificados</h3>
-              
-              {result.analysis.patterns.cyclicalPatterns?.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium text-green-800 mb-2">Padrões Cíclicos</h4>
-                  <div className="space-y-2">
-                    {result.analysis.patterns.cyclicalPatterns.map((pattern: any, index: number) => (
-                      <div key={index} className="bg-green-50 p-3 rounded-lg">
-                        <div className="font-medium">{pattern.pattern}</div>
-                        <div className="text-sm text-gray-600">Frequência: {pattern.frequency}</div>
-                        <div className="text-sm">{pattern.description}</div>
-                      </div>
-                    ))}
+              {/* Metadados */}
+              <div className="bg-gray-50 p-4 rounded-lg mt-8">
+                <h4 className="font-medium text-gray-900 mb-2">Informações da Análise</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Tipo:</span>
+                    <span className="ml-2 capitalize">{result.type || 'Cronologia'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Status:</span>
+                    <span className="ml-2 capitalize">{result.status || 'Concluído'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Tempo de processamento:</span>
+                    <span className="ml-2">{result.processingTime ? `${(result.processingTime / 1000).toFixed(1)}s` : 'N/A'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Data:</span>
+                    <span className="ml-2">{result.createdAt ? new Date(result.createdAt).toLocaleString('pt-BR') : 'N/A'}</span>
                   </div>
                 </div>
-              )}
-
-              {result.analysis.patterns.triggerPatterns?.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-medium text-green-800 mb-2">Padrões de Gatilhos</h4>
-                  <div className="space-y-2">
-                    {result.analysis.patterns.triggerPatterns.map((trigger: any, index: number) => (
-                      <div key={index} className="bg-green-50 p-3 rounded-lg">
-                        <div className="font-medium">{trigger.trigger}</div>
-                        <div className="text-sm text-gray-600">Timeframe: {trigger.timeframe}</div>
-                        <div className="text-sm">{trigger.mechanism}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Momentos Críticos */}
-            {result.analysis.criticalMoments?.length > 0 && (
-              <div className="border-l-4 border-red-500 pl-4">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Momentos Críticos</h3>
-                <div className="space-y-3">
-                  {result.analysis.criticalMoments.map((moment: any, index: number) => (
-                    <div key={index} className="bg-red-50 p-4 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-red-900">{moment.event}</span>
-                        <span className="text-sm text-red-700">
-                          {new Date(moment.date).toLocaleDateString('pt-BR')}
-                        </span>
-                      </div>
-                      <div className="text-sm text-red-800 mb-2">{moment.impact}</div>
-                      <div className="text-sm text-red-700">
-                        <strong>Intervenção recomendada:</strong> {moment.recommendedIntervention}
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
-            )}
-
-            {/* Prognóstico Temporal */}
-            <div className="border-l-4 border-purple-500 pl-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Prognóstico Temporal</h3>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-purple-900 mb-2">Curto Prazo (3-6 meses)</h4>
-                  <p className="text-sm text-purple-800">{result.analysis.temporalPrognosis.shortTerm}</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-purple-900 mb-2">Médio Prazo (6-12 meses)</h4>
-                  <p className="text-sm text-purple-800">{result.analysis.temporalPrognosis.mediumTerm}</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-purple-900 mb-2">Longo Prazo (1-2 anos)</h4>
-                  <p className="text-sm text-purple-800">{result.analysis.temporalPrognosis.longTerm}</p>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+                <h3 className="text-lg font-medium text-yellow-800 mb-2">Conteúdo Não Encontrado</h3>
+                <p className="text-yellow-700 mb-4">
+                  A análise foi processada, mas o conteúdo não está disponível.
+                </p>
+                <div className="bg-yellow-100 p-4 rounded text-left">
+                  <h4 className="font-medium text-yellow-800 mb-2">Debug Info:</h4>
+                  <pre className="text-xs text-yellow-700 whitespace-pre-wrap">
+                    {JSON.stringify(result, null, 2)}
+                  </pre>
                 </div>
               </div>
             </div>
-
-            {/* Síntese Cronológica */}
-            <div className="border-l-4 border-yellow-500 pl-4">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Síntese Cronológica</h3>
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <p className="text-gray-800">{result.analysis.chronologicalSynthesis}</p>
-              </div>
-            </div>
-
-            {/* Metadados */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">Informações da Análise</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-600">Modelo:</span>
-                  <span className="ml-2">{result.aiMetadata.model}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Tokens:</span>
-                  <span className="ml-2">{result.aiMetadata.totalTokens}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Custo:</span>
-                  <span className="ml-2">R$ {result.aiMetadata.cost.toFixed(4)}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Data:</span>
-                  <span className="ml-2">{new Date(result.createdAt).toLocaleString('pt-BR')}</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
 
           <div className="flex justify-between mt-8">
             <button
-              onClick={() => router.push('/analyses')}
+              onClick={() => {
+                setStep(1);
+                setResult(null);
+              }}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
-              Voltar para Análises
+              Nova Análise
             </button>
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  setStep(1);
-                  setSelectedPatient(null);
-                  setResult(null);
-                  setChronologyData({
-                    lifeEvents: [],
-                    menstrualHistory: {
-                      menarche: '',
-                      cyclePattern: '',
-                      irregularities: [],
-                      contraceptiveHistory: []
-                    },
-                    symptomEvolution: [],
-                    treatmentHistory: []
-                  });
-                }}
-                className="px-6 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50"
-              >
-                Nova Análise
-              </button>
-              <button className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center">
-                <Save className="w-4 h-4 mr-2" />
-                Salvar Relatório
-              </button>
-            </div>
           </div>
         </div>
       )}

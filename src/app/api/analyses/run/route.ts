@@ -38,8 +38,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar serviço de análise
+    const companyId = user.company ? user.company.toString() : 'global';
     const analysisService = createAnalysisService(
-      user.companyId.toString(),
+      companyId,
       user._id.toString(),
       patientId
     );

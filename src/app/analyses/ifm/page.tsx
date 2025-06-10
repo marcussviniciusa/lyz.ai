@@ -93,6 +93,53 @@ interface IFMData {
   };
 }
 
+const renderMarkdown = (text: string): string => {
+  // First, let's handle tables
+  let processedText = text.replace(/\|(.+)\|/g, (match, content) => {
+    const row = content.split('|').map((cell: string) => cell.trim());
+    return `<tr>${row.map((cell: string) => `<td class="border border-gray-300 px-3 py-2">${cell}</td>`).join('')}</tr>`;
+  });
+
+  // Wrap table rows in table
+  processedText = processedText.replace(/(<tr>.*?<\/tr>\s*)+/g, (match) => {
+    return `<table class="w-full border-collapse border border-gray-300 my-6">${match}</table>`;
+  });
+
+  return processedText
+    // Process headers (order matters - #### before ###)
+    .replace(/^#### (.*$)/gim, '<h4 class="text-base font-medium mb-3 mt-6 text-gray-800">$1</h4>')
+    .replace(/^### (.*$)/gim, '<h3 class="text-lg font-semibold mb-4 mt-8 text-gray-900">$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2 class="text-xl font-bold mb-6 mt-10 text-gray-900 border-b-2 border-gray-200 pb-2">$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1 class="text-2xl font-bold mb-8 mt-12 text-gray-900">$1</h1>')
+    
+    // Process bold text
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+    
+    // Process horizontal rules
+    .replace(/^---$/gim, '<hr class="my-8 border-gray-300">')
+    
+    // Process different levels of lists
+    .replace(/^    - (.+)$/gim, '<li class="ml-12 mb-1 list-disc text-sm">$1</li>') // 4 spaces = sublista
+    .replace(/^  - (.+)$/gim, '<li class="ml-9 mb-1 list-disc">$1</li>')             // 2 spaces = sublista
+    .replace(/^- (.+)$/gim, '<li class="ml-6 mb-2 list-disc">$1</li>')               // lista principal
+    
+    // Group consecutive <li> elements into <ul> containers
+    .replace(/(<li[^>]*>.*?<\/li>\s*)+/g, (match) => {
+      return `<ul class="mb-4 space-y-1">${match}</ul>`;
+    })
+    
+    // Split into paragraphs and process each one
+    .split('\n\n')
+    .map(paragraph => {
+      // Don't wrap headers, lists, tables, or horizontal rules in <p> tags
+      if (paragraph.includes('<h') || paragraph.includes('<ul') || paragraph.includes('<hr') || paragraph.includes('<table') || !paragraph.trim()) {
+        return paragraph;
+      }
+      return `<p class="mb-4 text-gray-800 leading-relaxed">${paragraph}</p>`;
+    })
+    .join('\n');
+};
+
 export default function IFMAnalysisPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -100,15 +147,17 @@ export default function IFMAnalysisPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState<{
-    analysis: string;
-    systems: Array<{
+    analysis?: string;
+    content?: string;
+    processingTime?: number;
+    systems?: Array<{
       name: string;
       score: number;
       symptoms: string[];
       recommendations: string[];
     }>;
-    interconnections: string[];
-    priorities: string[];
+    interconnections?: string[];
+    priorities?: string[];
   } | null>(null);
   const [existingAnalyses, setExistingAnalyses] = useState([]);
 
@@ -135,7 +184,7 @@ export default function IFMAnalysisPage() {
       const response = await fetch('/api/patients');
       if (response.ok) {
         const data = await response.json();
-        setPatients(data.data || []);
+        setPatients(data.patients || []);
       }
     } catch (error) {
       console.error('Erro ao carregar pacientes:', error);
@@ -182,7 +231,21 @@ export default function IFMAnalysisPage() {
       }
 
       const data = await response.json();
-      setResults(data.data);
+      
+      // Processar resposta de forma inteligente (similar à cronologia)
+      let processedResult;
+      if (data.data?.result) {
+        processedResult = data.data.result;
+      } else if (data.data?.analysis) {
+        processedResult = data.data;
+      } else if (data.data) {
+        processedResult = data.data;
+      } else {
+        processedResult = data;
+      }
+      
+      console.log('Dados da análise IFM recebidos:', processedResult);
+      setResults(processedResult);
     } catch (error: any) {
       console.error('Erro na análise:', error);
       alert(`Erro na análise: ${error.message}`);
@@ -421,41 +484,7 @@ export default function IFMAnalysisPage() {
               </div>
               
               <div className="prose prose-lg max-w-none">
-                {results.content.split('\n').map((line: string, index: number) => (
-                  <div key={index} className="mb-3">
-                    {line.startsWith('**') && line.endsWith('**') ? (
-                      <h4 className="text-lg font-semibold text-gray-900 mt-6 mb-3 border-l-4 border-primary-500 pl-4">
-                        {line.replace(/\*\*/g, '')}
-                      </h4>
-                    ) : line.startsWith('###') ? (
-                      <h3 className="text-xl font-bold text-gray-900 mt-8 mb-4">
-                        {line.replace(/###/g, '')}
-                      </h3>
-                    ) : line.startsWith('##') ? (
-                      <h2 className="text-2xl font-bold text-gray-900 mt-10 mb-6 border-b-2 border-gray-200 pb-2">
-                        {line.replace(/##/g, '')}
-                      </h2>
-                    ) : line.startsWith('- ') ? (
-                      <li className="ml-4 text-gray-700 list-disc">{line.substring(2)}</li>
-                    ) : line.includes('SISTEMA') && line.includes(':') ? (
-                      <div className="bg-gradient-to-r from-primary-50 to-blue-50 p-4 rounded-lg border-l-4 border-primary-500 my-4">
-                        <h5 className="font-bold text-primary-900">{line}</h5>
-                      </div>
-                    ) : line.includes('PRIORIDADE') ? (
-                      <div className="bg-red-50 p-3 rounded-lg border border-red-200 my-3">
-                        <p className="text-red-800 font-medium">{line}</p>
-                      </div>
-                    ) : line.includes('INTERVENÇÃO') ? (
-                      <div className="bg-green-50 p-3 rounded-lg border border-green-200 my-3">
-                        <p className="text-green-800 font-medium">{line}</p>
-                      </div>
-                    ) : line.trim() ? (
-                      <p className="text-gray-700 leading-relaxed">{line}</p>
-                    ) : (
-                      <div className="my-2"></div>
-                    )}
-                  </div>
-                ))}
+                <div dangerouslySetInnerHTML={{ __html: renderMarkdown(results.content || results.analysis || '') }} />
               </div>
 
               <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end space-x-3">

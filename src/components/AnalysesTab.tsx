@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 interface Analysis {
   _id: string
@@ -163,36 +165,48 @@ export default function AnalysesTab({ patientId }: AnalysesTabProps) {
             <h3 className="text-lg font-medium text-gray-900">Análises Recentes</h3>
             {analyses.slice(0, 3).map((analysis) => (
               <div key={analysis._id} className="bg-gray-50 rounded-lg p-4 border-l-4 border-blue-500">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-lg">{getAnalysisTypeIcon(analysis.type)}</span>
-                      <h4 className="font-medium text-gray-900">
-                        {getAnalysisTypeLabel(analysis.type)}
-                      </h4>
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(analysis.status)}`}>
-                        {getStatusLabel(analysis.status)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">{analysis.description}</p>
-                    {analysis.result && (
-                      <p className="text-sm text-gray-700 line-clamp-2">{analysis.result}</p>
-                    )}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                      <span>
-                        {new Date(analysis.createdAt).toLocaleDateString('pt-BR')}
-                      </span>
-                      <span>•</span>
-                      <span>{analysis.professional}</span>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(analysis.status)}`}></div>
+                    <div>
+                      <h4 className="font-medium text-gray-900">{getAnalysisTypeLabel(analysis.type)}</h4>
+                      <p className="text-sm text-gray-600">
+                        {format(new Date(analysis.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => router.push(`/analyses/${analysis._id}`)}
-                      className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                    >
-                      Ver
-                    </button>
+                  <div className="flex gap-2">
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(analysis.status)}`}>
+                      {getStatusLabel(analysis.status)}
+                    </span>
+                    {analysis.status === 'pending' ? (
+                      <button
+                        onClick={() => {
+                          // Redirecionar para execução da análise
+                          const analysisRoutes: { [key: string]: string } = {
+                            'laboratory': '/analyses/laboratory',
+                            'tcm': '/analyses/tcm', 
+                            'chronology': '/analyses/chronology',
+                            'ifm': '/analyses/ifm',
+                            'treatment': '/analyses/treatment-plan'
+                          }
+                          const route = analysisRoutes[analysis.type]
+                          if (route) {
+                            router.push(`${route}?patientId=${patientId}&analysisId=${analysis._id}`)
+                          }
+                        }}
+                        className="text-xs text-green-600 hover:text-green-800 font-medium"
+                      >
+                        Executar →
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => router.push(`/analyses/${analysis._id}`)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Ver Resultados →
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -204,29 +218,17 @@ export default function AnalysesTab({ patientId }: AnalysesTabProps) {
                   onClick={() => router.push(`/patients/${patientId}/analyses`)}
                   className="text-blue-600 hover:text-blue-800 font-medium"
                 >
-                  Ver mais {analyses.length - 3} análises →
+                  Ver Todas as Análises →
                 </button>
               </div>
             )}
           </div>
         </>
       ) : (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">📊</div>
-          <h3 className="text-xl font-medium text-gray-900 mb-2">
-            Nenhuma análise encontrada
-          </h3>
-          <p className="text-gray-600 mb-6">
-            Este paciente ainda não possui análises registradas.
-          </p>
-          <button
-            onClick={() => router.push(`/patients/${patientId}/analyses/new`)}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-          >
-            Criar Primeira Análise
-          </button>
+        <div className="text-center py-4">
+          <p className="text-gray-600">Nenhuma análise encontrada.</p>
         </div>
       )}
     </div>
   )
-} 
+}

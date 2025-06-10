@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { connectToDatabase } from '@/lib/db'
 import Analysis from '@/models/Analysis'
 import Patient from '@/models/Patient'
-import { ObjectId } from 'mongodb'
+import mongoose from 'mongoose'
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,12 +27,12 @@ export async function GET(request: NextRequest) {
 
     // Filtrar por empresa do usuário (exceto superadmin)
     if (session.user.role !== 'superadmin') {
-      query.company = new ObjectId(session.user.company)
+      query.company = new mongoose.Types.ObjectId(session.user.company)
     }
 
     // Filtro por paciente
     if (patientId) {
-      if (!ObjectId.isValid(patientId)) {
+      if (!mongoose.Types.ObjectId.isValid(patientId)) {
         return NextResponse.json({ error: 'ID do paciente inválido' }, { status: 400 })
       }
 
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
       }
 
-      query.patient = new ObjectId(patientId)
+      query.patient = new mongoose.Types.ObjectId(patientId)
     }
 
     // Filtros adicionais
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se o ID do paciente é válido
-    if (!ObjectId.isValid(body.patientId)) {
+    if (!mongoose.Types.ObjectId.isValid(body.patientId)) {
       return NextResponse.json({ error: 'ID do paciente inválido' }, { status: 400 })
     }
 
@@ -138,27 +138,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Criar ObjectId válido para professional
-    let professionalId: ObjectId;
-    if (ObjectId.isValid(session.user.id)) {
-      professionalId = new ObjectId(session.user.id);
+    let professionalId: mongoose.Types.ObjectId;
+    if (mongoose.Types.ObjectId.isValid(session.user.id)) {
+      professionalId = new mongoose.Types.ObjectId(session.user.id);
     } else {
       // Se o ID não for um ObjectId válido, criar um ObjectId padrão temporário
-      professionalId = new ObjectId();
+      professionalId = new mongoose.Types.ObjectId();
     }
 
     // Criar ObjectId válido para company
-    let companyId: ObjectId;
+    let companyId: mongoose.Types.ObjectId;
     if (session.user.role === 'superadmin') {
       companyId = patient.company;
-    } else if (session.user.company && ObjectId.isValid(session.user.company)) {
-      companyId = new ObjectId(session.user.company);
+    } else if (session.user.company && mongoose.Types.ObjectId.isValid(session.user.company)) {
+      companyId = new mongoose.Types.ObjectId(session.user.company);
     } else {
       // Criar um ObjectId padrão se não tiver company
-      companyId = new ObjectId();
+      companyId = new mongoose.Types.ObjectId();
     }
 
     const analysisData = {
-      patient: new ObjectId(body.patientId),
+      patient: new mongoose.Types.ObjectId(body.patientId),
       professional: professionalId,
       company: companyId,
       type: body.type,
