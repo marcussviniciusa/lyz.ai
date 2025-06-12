@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { 
-  ArrowLeft, Heart, Leaf, Zap, Eye, Play, Save
+  ArrowLeft, Play, Eye, Activity, Heart, User, Calendar, Thermometer, Coffee, Moon, Smile
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -88,6 +88,54 @@ interface TCMData {
   };
   additionalNotes: string;
 }
+
+// Função para processar markdown simples e remover cabeçalhos desnecessários
+const processMarkdown = (text: string) => {
+  if (!text) return '';
+  
+  // Limpar caracteres problemáticos e normalizar
+  let processed = text
+    .replace(/^#\s*$/gm, '') // Remover linhas com apenas #
+    .replace(/^##\s*$/gm, '') // Remover linhas com apenas ##
+    .replace(/\n{3,}/g, '\n\n') // Normalizar quebras de linha excessivas
+    .trim();
+  
+  // Processar cabeçalhos (ordem importante - do mais específico para o menos)
+  processed = processed
+    .replace(/^#### (.*?)$/gm, '<h4 class="text-base font-medium text-blue-700 mt-4 mb-2">$1</h4>')
+    .replace(/^### (.*?)$/gm, '<h3 class="text-lg font-semibold text-blue-800 mt-6 mb-3">$1</h3>')
+    .replace(/^## (.*?)$/gm, '<h2 class="text-xl font-semibold text-blue-900 mt-6 mb-3">$1</h2>')
+    .replace(/^# (.*?)$/gm, '<h1 class="text-2xl font-bold text-blue-900 mt-6 mb-4">$1</h1>');
+  
+  // Processar texto em negrito
+  processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-blue-600">$1</strong>');
+  
+  // Dividir em parágrafos e processar
+  const sections = processed.split('\n\n').filter(section => {
+    const trimmed = section.trim();
+    return trimmed && trimmed !== '#' && trimmed !== '##' && trimmed !== '###';
+  });
+  
+  return sections.map(section => {
+    section = section.trim();
+    
+    // Se já é um cabeçalho HTML, retornar como está
+    if (section.startsWith('<h')) {
+      return section;
+    }
+    
+    // Se contém apenas caracteres especiais, pular
+    if (/^[#\s]*$/.test(section)) {
+      return '';
+    }
+    
+    // Processar quebras de linha simples como <br>
+    const processedSection = section.replace(/\n/g, '<br>');
+    
+    // Envolver em parágrafo
+    return `<div class="mb-4 text-gray-700 leading-relaxed">${processedSection}</div>`;
+  }).filter(Boolean).join('');
+};
 
 export default function TCMAnalysisPage() {
   const router = useRouter();
@@ -692,48 +740,48 @@ export default function TCMAnalysisPage() {
                   </select>
                 </div>
 
-                                 <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Dor Menstrual</label>
-                   <select
-                     value={tcmData.menstrualTcm.dysmenorrheaCharacter}
-                     onChange={(e) => handleTCMDataChange('menstrualTcm', 'dysmenorrheaCharacter', e.target.value)}
-                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                   >
-                     <option value="">Selecione...</option>
-                     <option value="colica">Cólica</option>
-                     <option value="queimacao">Dor em queimação</option>
-                     <option value="surda">Dor surda</option>
-                     <option value="pontadas">Dor em pontadas</option>
-                   </select>
-                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Dor Menstrual</label>
+                  <select
+                    value={tcmData.menstrualTcm.dysmenorrheaCharacter}
+                    onChange={(e) => handleTCMDataChange('menstrualTcm', 'dysmenorrheaCharacter', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="colica">Cólica</option>
+                    <option value="queimacao">Dor em queimação</option>
+                    <option value="surda">Dor surda</option>
+                    <option value="pontadas">Dor em pontadas</option>
+                  </select>
+                </div>
 
-                 <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-2">Sintomas Pré-menstruais</label>
-                   <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
-                     {['Irritabilidade', 'Ansiedade', 'Tensão mamária', 'Inchaço', 'Mudanças de humor', 'Fadiga', 'Dor de cabeça', 'Insônia', 'Desejos alimentares', 'Acne', 'Dor nas costas'].map(symptom => {
-                       const isChecked = tcmData.menstrualTcm.preMenstrualSymptoms.includes(symptom);
-                       return (
-                         <label key={symptom} className="flex items-center">
-                           <input
-                             type="checkbox"
-                             checked={isChecked}
-                             onChange={(e) => {
-                               const currentSymptoms = tcmData.menstrualTcm.preMenstrualSymptoms;
-                               if (e.target.checked) {
-                                 handleTCMDataChange('menstrualTcm', 'preMenstrualSymptoms', JSON.stringify([...currentSymptoms, symptom]));
-                               } else {
-                                 handleTCMDataChange('menstrualTcm', 'preMenstrualSymptoms', JSON.stringify(currentSymptoms.filter(s => s !== symptom)));
-                               }
-                             }}
-                             className="mr-2"
-                           />
-                           <span className="text-sm">{symptom}</span>
-                         </label>
-                       );
-                     })}
-                   </div>
-                 </div>
-               </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sintomas Pré-menstruais</label>
+                  <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto">
+                    {['Irritabilidade', 'Ansiedade', 'Tensão mamária', 'Inchaço', 'Mudanças de humor', 'Fadiga', 'Dor de cabeça', 'Insônia', 'Desejos alimentares', 'Acne', 'Dor nas costas'].map(symptom => {
+                      const isChecked = tcmData.menstrualTcm.preMenstrualSymptoms.includes(symptom);
+                      return (
+                        <label key={symptom} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const currentSymptoms = tcmData.menstrualTcm.preMenstrualSymptoms;
+                              if (e.target.checked) {
+                                handleTCMDataChange('menstrualTcm', 'preMenstrualSymptoms', JSON.stringify([...currentSymptoms, symptom]));
+                              } else {
+                                handleTCMDataChange('menstrualTcm', 'preMenstrualSymptoms', JSON.stringify(currentSymptoms.filter(s => s !== symptom)));
+                              }
+                            }}
+                            className="mr-2"
+                          />
+                          <span className="text-sm">{symptom}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
 
               {/* Padrões Energéticos e Emocionais */}
               <div className="space-y-4">
@@ -901,7 +949,7 @@ export default function TCMAnalysisPage() {
               {/* Diagnóstico Energético */}
               <div className="border-l-4 border-blue-500 pl-4">
                 <h3 className="text-lg font-medium text-gray-900 mb-2">Diagnóstico Energético</h3>
-                <p className="text-gray-700">{result.analysis.energeticDiagnosis}</p>
+                <div className="text-gray-700" dangerouslySetInnerHTML={{ __html: processMarkdown(result.analysis.energeticDiagnosis) }}></div>
               </div>
 
               {/* Fitoterapia */}

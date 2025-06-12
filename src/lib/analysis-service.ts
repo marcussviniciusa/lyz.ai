@@ -227,6 +227,10 @@ export class AnalysisService {
 
       const processingTime = Date.now() - startTime;
 
+      // Fazer parsing da resposta para extrair seções estruturadas
+      const parsedAnalysis = this.parseTCMAnalysis(content);
+
+      // Salvar análise no banco
       const analysis = new Analysis({
         patient: this.patientId,
         professional: this.userId,
@@ -242,10 +246,14 @@ export class AnalysisService {
         result: {
           rawOutput: content,
           tcmAnalysis: {
-            energeticDiagnosis: content, // A IA deveria retornar estruturado, mas por enquanto deixo assim
-            phytotherapyRecommendations: [],
-            acupunctureRecommendations: { points: [], frequency: '', duration: '' },
-            lifestyleRecommendations: []
+            energeticDiagnosis: parsedAnalysis.energeticDiagnosis,
+            phytotherapyRecommendations: parsedAnalysis.herbalRecommendations,
+            acupunctureRecommendations: { 
+              points: parsedAnalysis.acupuncturePoints.map(point => `${point.name}: ${point.indication}`), 
+              frequency: '2-3x por semana', 
+              duration: '6-8 semanas' 
+            },
+            lifestyleRecommendations: parsedAnalysis.lifestyleRecommendations
           }
         },
         aiMetadata: {
@@ -267,17 +275,13 @@ export class AnalysisService {
         status: 'completed',
         createdAt: analysis.createdAt,
         processingTime,
+        ragMetadata,
         // Estrutura esperada pelo frontend
         analysis: {
-          energeticDiagnosis: content,
-          herbalRecommendations: [],
-          acupuncturePoints: [],
-          generalRecommendations: [
-            'Mantenha regularidade nos horários de sono',
-            'Pratique exercícios leves e regulares',
-            'Alimente-se de forma equilibrada',
-            'Evite alimentos muito frios ou crus'
-          ]
+          energeticDiagnosis: parsedAnalysis.energeticDiagnosis,
+          herbalRecommendations: parsedAnalysis.herbalRecommendations,
+          acupuncturePoints: parsedAnalysis.acupuncturePoints,
+          generalRecommendations: parsedAnalysis.lifestyleRecommendations
         },
         aiMetadata: {
           provider: analysisConfig.provider,
@@ -291,6 +295,249 @@ export class AnalysisService {
       console.error('Erro na análise de MTC:', error);
       throw error;
     }
+  }
+
+  /**
+   * Faz parsing da resposta da IA para extrair seções estruturadas
+   */
+  private parseTCMAnalysis(content: string) {
+    console.log('🔍 Iniciando parsing TCM da resposta:', content.substring(0, 200) + '...');
+    
+    // Regex patterns mais flexíveis para capturar diferentes formatos
+    const patterns = {
+      // Capturar qualquer seção de diagnóstico/identificação de padrões
+      energeticDiagnosis: /(?:### Diagnóstico de Medicina Tradicional Chinesa|# Diagnóstico e Tratamento|## 2\. IDENTIFICAÇÃO DE PADRÕES)[\s\S]*?(?=(?:#### 3\.|### 3\.|## 3\.)|$)/i,
+      
+      // Capturar seções de fitoterapia
+      herbalSection: /(?:#### 3\. Tratamento Fitoterápico|### 3\.1 Fórmulas Fitoterápicas|## 3\. TRATAMENTO PERSONALIZADO[\s\S]*?### 3\.1 Fórmulas Fitoterápicas)[\s\S]*?(?=(?:####|###|## |$))/i,
+      
+      // Capturar seções de acupuntura
+      acupunctureSection: /(?:#### 4\. Pontos de Acupuntura|### 3\.2 Pontos de Acupuntura)[\s\S]*?(?=(?:####|###|## |$))/i,
+      
+      // Capturar seções de estilo de vida
+      lifestyleSection: /(?:#### 5\. Modificações de Estilo de Vida|### 3\.3 Modificações de Estilo de Vida)[\s\S]*?(?=(?:####|###|## |$))/i
+    };
+
+    const extractHerbalRecommendations = (text: string) => {
+      const herbs: any[] = [];
+      console.log('🌿 Extraindo recomendações fitoterápicas de:', text.substring(0, 100));
+      
+      // Buscar por padrões de fórmulas mais simples
+      const lines = text.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Procurar por padrões de numeração "1. **Nome**:" - mais permissivo
+        if (line.match(/^\d+\.\s*\*\*(.*?)\*\*/)) {
+          const match = line.match(/^\d+\.\s*\*\*(.*?)\*\*:?\s*(.*)?/);
+          if (match && match[1]) {
+            const name = match[1].trim();
+            let description = match[2] ? match[2].trim() : '';
+            
+            // Tentar pegar descrição da próxima linha se não houver
+            if (!description && i + 1 < lines.length) {
+              description = lines[i + 1].trim();
+            }
+            
+            // Filtrar nomes válidos de fórmulas - MENOS restritivo
+            if (!herbs.find(h => h.name === name) && 
+                name.length > 3 && 
+                name.length < 80 &&
+                !name.includes('Fitoterápicas') &&
+                !name.includes('Sugeridas')) {
+              herbs.push({
+                name: name,
+                dosage: "Conforme orientação profissional",
+                benefits: description.substring(0, 200) + (description.length > 200 ? "..." : "") || "Fórmula específica para o caso"
+              });
+            }
+          }
+        }
+        
+        // Procurar padrões específicos como "Fórmula \"Nome\""
+        if (line.toLowerCase().includes('fórmula') && (line.includes('"') || line.includes('"') || line.includes('"'))) {
+          const match = line.match(/fórmula\s*["""]([^"""]+)["""]/i);
+          if (match && match[1]) {
+            const name = match[1].trim();
+            if (!herbs.find(h => h.name === name) && name.length > 3 && name.length < 50) {
+              herbs.push({
+                name: name,
+                dosage: "Conforme orientação profissional",
+                benefits: "Fórmula específica recomendada pela análise TCM"
+              });
+            }
+          }
+        }
+
+        // Procurar padrões mais simples - nome em negrito
+        if (line.includes('**') && !line.includes('Fórmulas') && !line.includes('Sugeridas')) {
+          const match = line.match(/\*\*([^*]+)\*\*/);
+          if (match && match[1]) {
+            const name = match[1].trim();
+            // Verificar se parece um nome de fórmula (tem letras chinesas ou nomes de plantas)
+            const chinesePattern = /[A-Z][a-z]+\s+[A-Z][a-z]+|[A-Za-z]+\s+(Tang|Wan|San|Yin|Decoction)/i;
+            if (!herbs.find(h => h.name === name) && 
+                name.length > 3 && 
+                name.length < 50 &&
+                (chinesePattern.test(name) || name.includes('Tang') || name.includes('Wan') || name.includes('San'))) {
+              herbs.push({
+                name: name,
+                dosage: "Conforme orientação profissional",
+                benefits: "Fórmula específica para o padrão energético identificado"
+              });
+            }
+          }
+        }
+      }
+      
+      console.log('🌿 Fórmulas extraídas:', herbs.length);
+      return herbs;
+    };
+
+    const extractAcupuncturePoints = (text: string) => {
+      const points: any[] = [];
+      console.log('📍 Extraindo pontos de acupuntura de:', text.substring(0, 100));
+      
+      const lines = text.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Procurar por padrões como "- **Ponto:**" ou "**Ponto:**"
+        if (line.includes('**') && line.includes(':')) {
+          const match1 = line.match(/\*\*(.*?)\*\*.*?:\s*(.*)/);
+          if (match1 && match1[1]) {
+            const pointName = match1[1].trim();
+            const indication = match1[2] ? match1[2].trim() : 'Indicação específica';
+            
+            if (!points.find(p => p.name === pointName) && pointName.length > 2) {
+              points.push({
+                name: pointName,
+                indication: indication.substring(0, 100) + (indication.length > 100 ? "..." : "")
+              });
+            }
+          }
+        }
+        
+        // Procurar padrões como "- Nome (Código):"
+        if (line.includes('(') && line.includes(')') && line.includes(':')) {
+          const match2 = line.match(/(.*?)\s*\((.*?)\):\s*(.*)/);
+          if (match2 && match2[1]) {
+            const pointName = `${match2[1].trim()} (${match2[2].trim()})`;
+            const indication = match2[3] ? match2[3].trim() : 'Indicação específica';
+            
+            if (!points.find(p => p.name === pointName)) {
+              points.push({
+                name: pointName,
+                indication: indication.substring(0, 100) + (indication.length > 100 ? "..." : "")
+              });
+            }
+          }
+        }
+      }
+      
+      console.log('📍 Pontos extraídos:', points.length);
+      return points;
+    };
+
+    const extractLifestyleRecommendations = (text: string) => {
+      const recommendations: string[] = [];
+      console.log('🎯 Extraindo recomendações de estilo de vida de:', text.substring(0, 100));
+      
+      const lines = text.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Procurar por padrões como "- **Categoria:**" ou "**Categoria:**"
+        if (line.includes('**') && line.includes(':')) {
+          const match1 = line.match(/\*\*(.*?)\*\*.*?:\s*(.*)/);
+          if (match1 && match1[1]) {
+            const title = match1[1].trim();
+            let desc = match1[2] ? match1[2].trim() : '';
+            
+            // Se a descrição parece incompleta, tentar pegar da próxima linha
+            if (desc.length > 10 && !desc.endsWith('.') && !desc.endsWith('!') && !desc.endsWith('?')) {
+              const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+              if (nextLine && !nextLine.startsWith('-') && !nextLine.includes('**')) {
+                desc += ' ' + nextLine;
+              }
+            }
+            
+            if (title.length > 5) {
+              const recommendation = desc ? `${title}: ${desc}` : title;
+              if (!recommendations.includes(recommendation)) {
+                recommendations.push(recommendation);
+              }
+            }
+          }
+        }
+        
+        // Procurar padrões como "- Descrição simples"
+        if (line.startsWith('-') && !line.includes('**')) {
+          let desc = line.substring(1).trim();
+          
+          // Se parece incompleto, tentar pegar da próxima linha
+          if (desc.length > 15 && !desc.endsWith('.') && !desc.endsWith('!') && !desc.endsWith('?')) {
+            const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+            if (nextLine && !nextLine.startsWith('-') && !nextLine.includes('**') && nextLine.length > 0) {
+              desc += ' ' + nextLine;
+            }
+          }
+          
+          if (desc.length > 10 && !recommendations.includes(desc)) {
+            recommendations.push(desc);
+          }
+        }
+      }
+      
+      // Se não encontrou recomendações específicas, usar padrão
+      if (recommendations.length === 0) {
+        recommendations.push(
+          'Mantenha regularidade nos horários de sono',
+          'Pratique exercícios leves e regulares',
+          'Alimente-se de forma equilibrada',
+          'Evite alimentos muito frios ou crus'
+        );
+      }
+      
+      console.log('🎯 Recomendações extraídas:', recommendations.length);
+      return recommendations;
+    };
+
+    // Extrair seções usando os novos padrões
+    const energeticMatch = content.match(patterns.energeticDiagnosis);
+    const herbalMatch = content.match(patterns.herbalSection);
+    const acupunctureMatch = content.match(patterns.acupunctureSection);
+    const lifestyleMatch = content.match(patterns.lifestyleSection);
+
+    console.log('📊 Seções encontradas:', {
+      energetic: !!energeticMatch,
+      herbal: !!herbalMatch,
+      acupuncture: !!acupunctureMatch,
+      lifestyle: !!lifestyleMatch
+    });
+
+    const acupuncturePointsData = acupunctureMatch ? extractAcupuncturePoints(acupunctureMatch[0]) : extractAcupuncturePoints(content);
+    const lifestyleData = lifestyleMatch ? extractLifestyleRecommendations(lifestyleMatch[0]) : extractLifestyleRecommendations(content);
+    
+    const result = {
+      energeticDiagnosis: energeticMatch ? energeticMatch[0] : content,
+      herbalRecommendations: herbalMatch ? extractHerbalRecommendations(herbalMatch[0]) : extractHerbalRecommendations(content),
+      acupuncturePoints: acupuncturePointsData, // Manter como objetos para o frontend
+      lifestyleRecommendations: lifestyleData,
+      generalRecommendations: lifestyleData // Adicionar campo que o frontend espera
+    };
+
+    console.log('✅ Parsing TCM concluído:', {
+      energeticLength: result.energeticDiagnosis.length,
+      herbsCount: result.herbalRecommendations.length,
+      pointsCount: result.acupuncturePoints.length,
+      lifestyleCount: result.lifestyleRecommendations.length
+    });
+
+    return result;
   }
 
   /**

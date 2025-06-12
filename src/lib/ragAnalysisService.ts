@@ -111,7 +111,10 @@ class RAGAnalysisService {
         }
         
         if (inputData.pulseAnalysis) {
-          queries.push(`pulso ${inputData.pulseAnalysis.quality || inputData.pulseAnalysis} MTC`)
+          const pulseDesc = typeof inputData.pulseAnalysis === 'object' 
+            ? (inputData.pulseAnalysis.quality || inputData.pulseAnalysis.rate || inputData.pulseAnalysis.strength || 'Fraco')
+            : inputData.pulseAnalysis;
+          queries.push(`pulso ${pulseDesc} MTC`)
           queries.push('diagnóstico pelo pulso medicina chinesa')
         }
         
