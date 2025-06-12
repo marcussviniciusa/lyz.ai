@@ -66,7 +66,8 @@ const RAGDocumentSchema = new Schema<IRAGDocument>({
       'medicina-funcional',
       'mtc',
       'fitoterapia',
-      'nutricao'
+      'nutricao',
+      'cursos-transcricoes'
     ]
   },
   
@@ -77,7 +78,7 @@ const RAGDocumentSchema = new Schema<IRAGDocument>({
   },
   fileUrl: {
     type: String,
-    required: true
+    required: false
   },
   
   // Status do processamento

@@ -31,7 +31,8 @@ export default function RAGPage() {
     { id: 'medicina-funcional', name: 'Medicina Funcional', key: 'medicina-funcional' },
     { id: 'mtc', name: 'Medicina Chinesa', key: 'mtc' },
     { id: 'fitoterapia', name: 'Fitoterapia', key: 'fitoterapia' },
-    { id: 'nutricao', name: 'Nutrição', key: 'nutricao' }
+    { id: 'nutricao', name: 'Nutrição', key: 'nutricao' },
+    { id: 'cursos-transcricoes', name: 'Cursos e Transcrições', key: 'cursos-transcricoes' }
   ]
 
   const handleDrag = (e: React.DragEvent) => {

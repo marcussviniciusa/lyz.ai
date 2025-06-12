@@ -4,6 +4,7 @@ import { useEffect, useState, use } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatDateBR, calculateDaysSince } from '@/utils/dateUtils'
+import DashboardLayout from '@/components/DashboardLayout'
 
 interface Analysis {
   _id: string
@@ -231,52 +232,59 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-          <div className="h-32 bg-gray-200 rounded mb-4"></div>
-          <div className="h-24 bg-gray-200 rounded mb-4"></div>
-          <div className="h-16 bg-gray-200 rounded"></div>
+      <DashboardLayout>
+        <div className="container mx-auto p-6">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+            <div className="h-32 bg-gray-200 rounded mb-4"></div>
+            <div className="h-24 bg-gray-200 rounded mb-4"></div>
+            <div className="h-16 bg-gray-200 rounded"></div>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     )
   }
 
   if (error) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h2 className="text-red-800 font-semibold mb-2">Erro</h2>
-          <p className="text-red-600">{error}</p>
-          <button 
-            onClick={() => router.back()}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Voltar
-          </button>
+      <DashboardLayout>
+        <div className="container mx-auto p-6">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <h2 className="text-red-800 font-semibold mb-2">Erro</h2>
+            <p className="text-red-600">{error}</p>
+            <button 
+              onClick={() => router.back()}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Voltar
+            </button>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     )
   }
 
   if (!patient) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center">
-          <h2 className="text-xl text-gray-600">Paciente não encontrado</h2>
-          <button 
-            onClick={() => router.push('/patients')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Ver todos os pacientes
-          </button>
+      <DashboardLayout>
+        <div className="container mx-auto p-6">
+          <div className="text-center">
+            <h2 className="text-xl text-gray-600">Paciente não encontrado</h2>
+            <button 
+              onClick={() => router.push('/patients')}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Ver todos os pacientes
+            </button>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     )
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <DashboardLayout>
+      <div className="container mx-auto p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -962,5 +970,6 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
     </div>
+    </DashboardLayout>
   )
 } 

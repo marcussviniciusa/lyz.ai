@@ -132,13 +132,13 @@ export default function ChronologyAnalysisPage() {
         period: string;
         phase: string;
         keyEvents: string[];
-      }>;
+    }>;
       patterns: {
         cyclicalPatterns?: Array<{
-          pattern: string;
+      pattern: string;
           frequency: string;
           description: string;
-        }>;
+    }>;
         triggerPatterns?: Array<{
           trigger: string;
           timeframe: string;
@@ -757,31 +757,31 @@ export default function ChronologyAnalysisPage() {
                     __html: renderMarkdown(result.content) 
                   }}
                 />
-              </div>
+            </div>
 
-              {/* Metadados */}
+            {/* Metadados */}
               <div className="bg-gray-50 p-4 rounded-lg mt-8">
-                <h4 className="font-medium text-gray-900 mb-2">Informações da Análise</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
+              <h4 className="font-medium text-gray-900 mb-2">Informações da Análise</h4>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
                     <span className="text-gray-600">Tipo:</span>
                     <span className="ml-2 capitalize">{result.type || 'Cronologia'}</span>
-                  </div>
-                  <div>
+                </div>
+                <div>
                     <span className="text-gray-600">Status:</span>
                     <span className="ml-2 capitalize">{result.status || 'Concluído'}</span>
-                  </div>
-                  <div>
+                </div>
+                <div>
                     <span className="text-gray-600">Tempo de processamento:</span>
                     <span className="ml-2">{result.processingTime ? `${(result.processingTime / 1000).toFixed(1)}s` : 'N/A'}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Data:</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Data:</span>
                     <span className="ml-2">{result.createdAt ? new Date(result.createdAt).toLocaleString('pt-BR') : 'N/A'}</span>
-                  </div>
                 </div>
               </div>
             </div>
+          </div>
           ) : (
             <div className="text-center py-8">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
@@ -800,15 +800,15 @@ export default function ChronologyAnalysisPage() {
           )}
 
           <div className="flex justify-between mt-8">
-            <button
-              onClick={() => {
-                setStep(1);
-                setResult(null);
-              }}
+              <button
+                onClick={() => {
+                  setStep(1);
+                  setResult(null);
+                }}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Nova Análise
-            </button>
+              >
+                Nova Análise
+              </button>
           </div>
         </div>
       )}

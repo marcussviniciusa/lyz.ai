@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import { RAGDocument } from '@/models/RAGDocument'
 import RAGService from '@/lib/ragService'
+import mongoose from 'mongoose'
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,9 +22,34 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '10')
 
+    // Função para garantir ObjectId válido
+    const ensureValidObjectId = (value: any, fieldName: string): string => {
+      if (!value) {
+        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
+      }
+      
+      // Se já é um ObjectId válido, retorna como string
+      if (mongoose.Types.ObjectId.isValid(value)) {
+        return value.toString()
+      }
+      
+      // Se é uma string simples (como "1"), usar ObjectId fixo para manter consistência
+      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
+    }
+
+    // Garantir companyId válido
+    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
+
+    console.log('📋 Listagem RAG - IDs processados:', { 
+      originalCompany: session.user?.company,
+      processedCompany: companyId
+    })
+
     // Construir filtro
     const filter: any = { 
-      companyId: session.user.company || '1'
+      companyId: companyId
     }
     
     if (category && category !== 'all') {
@@ -44,7 +70,7 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .lean(),
       RAGDocument.countDocuments(filter),
-      RAGService.getDocumentStats(session.user.company || '1')
+      RAGService.getDocumentStats(companyId)
     ])
 
     return NextResponse.json({
@@ -96,17 +122,41 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    await RAGService.deleteDocument(documentId, session.user.company || '1')
+    // Garantir companyId válido
+    const ensureValidObjectId = (value: any, fieldName: string): string => {
+      if (!value) {
+        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
+      }
+      
+      if (mongoose.Types.ObjectId.isValid(value)) {
+        return value.toString()
+      }
+      
+      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
+    }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Documento deletado com sucesso'
-    })
+    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
+
+    const success = await RAGService.deleteDocument(documentId, companyId)
+
+    if (success) {
+      return NextResponse.json({
+        success: true,
+        message: 'Documento deletado com sucesso'
+      })
+    } else {
+      return NextResponse.json(
+        { error: 'Documento não encontrado' },
+        { status: 404 }
+      )
+    }
 
   } catch (error: any) {
     console.error('Erro ao deletar documento:', error)
     return NextResponse.json(
-      { error: error.message || 'Erro interno do servidor' },
+      { error: 'Erro interno do servidor' },
       { status: 500 }
     )
   }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import RAGService from '@/lib/ragService'
+import mongoose from 'mongoose'
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,9 +53,38 @@ export async function POST(request: NextRequest) {
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json(
         { error: 'Arquivo muito grande. Máximo 10MB' },
-        { status: 400 }
+        { status: 500 }
       )
     }
+
+    // Função para garantir ObjectId válido
+    const ensureValidObjectId = (value: any, fieldName: string): string => {
+      if (!value) {
+        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        // Usar ObjectId fixo para desenvolvimento para manter consistência
+        return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
+      }
+      
+      // Se já é um ObjectId válido, retorna como string
+      if (mongoose.Types.ObjectId.isValid(value)) {
+        return value.toString()
+      }
+      
+      // Se é uma string simples (como "1"), usar ObjectId fixo para manter consistência
+      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
+    }
+
+    // Garantir ObjectIds válidos
+    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
+    const uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy')
+
+    console.log('📋 Upload RAG - IDs processados:', { 
+      originalCompany: session.user?.company,
+      originalUser: session.user?.id,
+      processedCompany: companyId,
+      processedUser: uploadedBy
+    })
 
     // Gerar nome único para o arquivo
     const timestamp = Date.now()
@@ -70,8 +100,8 @@ export async function POST(request: NextRequest) {
         originalFileName: file.name,
         mimeType: file.type,
         category,
-        companyId: session.user.company,
-        uploadedBy: session.user.id
+        companyId,
+        uploadedBy
       })
 
       return NextResponse.json({

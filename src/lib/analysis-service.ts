@@ -1,5 +1,6 @@
 import { AIService } from './ai-service';
 import { RAGService } from './rag-service';
+import RAGAnalysisService from './ragAnalysisService';
 import { generatePrompt } from './prompts';
 import Analysis from '@/models/Analysis';
 import Patient from '@/models/Patient';
@@ -14,6 +15,9 @@ export interface AnalysisResult {
   createdAt: Date;
   tokensUsed?: number;
   processingTime?: number;
+  analysis?: any; // Dados estruturados específicos por tipo de análise
+  aiMetadata?: any; // Metadados da IA
+  ragMetadata?: any; // Metadados do RAG
 }
 
 export class AnalysisService {
@@ -41,29 +45,78 @@ export class AnalysisService {
       // Inicializar serviços
       await this.initialize();
       
-      // Buscar dados da paciente
       const patient = await Patient.findById(this.patientId);
       if (!patient) throw new Error('Paciente não encontrada');
 
       // Obter configuração da análise laboratorial
       const analysisConfig = await this.aiService.getAnalysisConfig('laboratory');
 
-      // Gerar contexto RAG se habilitado
+      // Buscar contexto RAG inteligente se habilitado
       let ragContext = '';
-      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+      let ragMetadata: any = {};
+      
+      console.log('🧪 === INICIANDO BUSCA RAG PARA ANÁLISE LABORATORIAL ===');
+      console.log('📊 Configuração RAG:', { 
+        ragEnabled: analysisConfig.ragEnabled, 
+        companyId: this.companyId,
+        isGlobal: this.companyId === 'global'
+      });
+      
+      // TEMPORÁRIO: Permitir RAG para empresa global para testes
+      if (analysisConfig.ragEnabled) {
         try {
-          ragContext = await this.ragService.generateContext(
-            `exames laboratoriais ${patient.mainSymptoms?.join(' ')} medicina funcional`,
+          console.log('🔍 Executando busca RAG para análise laboratorial...');
+          
+          // Se empresa for global, usar um ObjectId fixo para desenvolvimento
+          const searchCompanyId = this.companyId === 'global' ? '507f1f77bcf86cd799439011' : this.companyId;
+          
+          const ragResult = await RAGAnalysisService.searchRelevantContext(
             'laboratory',
-            this.companyId
+            examData,
+            searchCompanyId,
+            patient,
+            5
           );
+          
+          ragContext = ragResult.contextSummary;
+          ragMetadata = {
+            documentsUsed: ragResult.relevantDocuments.length,
+            searchQueries: ragResult.searchQueries,
+            evidenceLevel: ragResult.specificContext?.evidenceLevel || 'baixa'
+          };
+          
+          console.log('✅ RAG Laboratorial ativado com sucesso!');
+          console.log('📋 Metadados RAG:', ragMetadata);
+          console.log('📄 Documentos encontrados:', ragResult.relevantDocuments.map(doc => ({
+            fileName: doc.fileName,
+            score: doc.score,
+            category: doc.category
+          })));
+          console.log('🔍 Queries de busca utilizadas:', ragResult.searchQueries);
+          console.log('📝 Tamanho do contexto gerado:', ragContext.length, 'caracteres');
+          
+          if (ragResult.relevantDocuments.length === 0) {
+            console.log('⚠️ ATENÇÃO: Nenhum documento RAG encontrado para análise laboratorial');
+          }
+          
         } catch (error) {
-          console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
+          console.log('❌ RAG falhou para análise laboratorial:', error instanceof Error ? error.message : error);
+          console.log('🔄 Continuando análise sem contexto RAG...');
           ragContext = '';
         }
+      } else {
+        console.log('⏭️ RAG desabilitado - pulando busca RAG');
       }
 
-      // Executar análise usando configurações globais
+      console.log('🤖 Iniciando geração de análise laboratorial com IA...');
+      console.log('📊 Dados para IA:', {
+        patientName: patient.name,
+        examDataKeys: Object.keys(examData),
+        ragContextSize: ragContext.length,
+        hasRAGContext: ragContext.length > 0
+      });
+
+      // Executar análise usando configurações globais com contexto RAG
       const content = await this.aiService.generateAnalysis(
         'laboratory',
         { patientData: patient, examData, ragContext }
@@ -101,6 +154,9 @@ export class AnalysisService {
       });
 
       await analysis.save();
+      
+      console.log('💾 Análise laboratorial salva com sucesso');
+      console.log('🧪 === BUSCA RAG PARA ANÁLISE LABORATORIAL CONCLUÍDA ===');
 
       return {
         id: analysis._id.toString(),
@@ -109,36 +165,11 @@ export class AnalysisService {
         status: 'completed',
         createdAt: analysis.createdAt,
         processingTime,
+        ragMetadata
       };
 
     } catch (error) {
-      console.error('Erro na análise laboratorial:', error);
-      
-      // Salvar erro no banco
-      const analysis = new Analysis({
-        patient: this.patientId,
-        professional: this.userId,
-        company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
-        type: 'laboratory',
-        status: 'error',
-        inputData: {
-          laboratoryManualData: JSON.stringify(examData)
-        },
-        result: {
-          rawOutput: error instanceof Error ? error.message : 'Erro desconhecido'
-        },
-        aiMetadata: {
-          provider: 'openai',
-          model: 'gpt-4',
-          promptVersion: '1.0',
-          tokensUsed: 0,
-          processingTime: Date.now() - startTime,
-          cost: 0
-        }
-      });
-
-      await analysis.save();
-
+      console.error('❌ Erro na análise laboratorial:', error);
       throw error;
     }
   }
@@ -159,22 +190,36 @@ export class AnalysisService {
       // Obter configuração da análise de MTC
       const analysisConfig = await this.aiService.getAnalysisConfig('tcm');
 
-      // Gerar contexto RAG se habilitado
+      // Buscar contexto RAG inteligente se habilitado
       let ragContext = '';
-      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+      let ragMetadata: any = {};
+      // TEMPORÁRIO: Permitir RAG para empresa global para testes
+      if (analysisConfig.ragEnabled) {
         try {
-          ragContext = await this.ragService.generateContext(
-            `medicina tradicional chinesa ${patient.mainSymptoms?.join(' ')} acupuntura fitoterapia`,
+          // Se empresa for global, usar um ObjectId fixo para desenvolvimento
+          const searchCompanyId = this.companyId === 'global' ? '507f1f77bcf86cd799439011' : this.companyId;
+          
+          const ragResult = await RAGAnalysisService.searchRelevantContext(
             'tcm',
-            this.companyId
+            tcmData,
+            searchCompanyId,
+            patient,
+            5
           );
+          ragContext = ragResult.contextSummary;
+          ragMetadata = {
+            documentsUsed: ragResult.relevantDocuments.length,
+            searchQueries: ragResult.searchQueries,
+            evidenceLevel: ragResult.specificContext?.evidenceLevel || 'baixa'
+          };
+          console.log('🎯 RAG MTC ativado:', ragMetadata);
         } catch (error) {
           console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
           ragContext = '';
         }
       }
 
-      // Executar análise usando configurações globais
+      // Executar análise usando configurações globais com contexto RAG
       const content = await this.aiService.generateAnalysis(
         'tcm',
         { patientData: patient, examData: tcmData, ragContext }
@@ -271,22 +316,36 @@ export class AnalysisService {
       // Obter configuração da análise de cronologia
       const analysisConfig = await this.aiService.getAnalysisConfig('chronology');
 
-      // Gerar contexto RAG se habilitado
+      // Buscar contexto RAG inteligente para cronologia
       let ragContext = '';
-      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+      let ragMetadata: any = {};
+      // TEMPORÁRIO: Permitir RAG para empresa global para testes
+      if (analysisConfig.ragEnabled) {
         try {
-          ragContext = await this.ragService.generateContext(
-            `cronologia saúde feminina ciclo menstrual ${patient.mainSymptoms?.join(' ')}`,
+          // Se empresa for global, usar um ObjectId fixo para desenvolvimento
+          const searchCompanyId = this.companyId === 'global' ? '507f1f77bcf86cd799439011' : this.companyId;
+          
+          const ragResult = await RAGAnalysisService.searchRelevantContext(
             'chronology',
-            this.companyId
+            { previousAnalyses, patientHistory: patient },
+            searchCompanyId,
+            patient,
+            5
           );
+          ragContext = ragResult.contextSummary;
+          ragMetadata = {
+            documentsUsed: ragResult.relevantDocuments.length,
+            searchQueries: ragResult.searchQueries,
+            evidenceLevel: ragResult.specificContext?.evidenceLevel || 'baixa'
+          };
+          console.log('🎯 RAG Cronologia ativado:', ragMetadata);
         } catch (error) {
           console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
           ragContext = '';
         }
       }
 
-      // Executar análise usando configurações globais
+      // Executar análise usando configurações globais com contexto RAG
       const content = await this.aiService.generateAnalysis(
         'chronology',
         { patientData: patient, previousAnalyses, ragContext }
@@ -360,22 +419,37 @@ export class AnalysisService {
       // Obter configuração da análise IFM
       const analysisConfig = await this.aiService.getAnalysisConfig('ifm');
 
-      // Gerar contexto RAG se habilitado
+      // Buscar contexto RAG especializado para matriz IFM
       let ragContext = '';
-      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+      let ragMetadata: any = {};
+      // TEMPORÁRIO: Permitir RAG para empresa global para testes
+      if (analysisConfig.ragEnabled) {
         try {
-          ragContext = await this.ragService.generateContext(
-            `medicina funcional matriz IFM sistemas ${patient.mainSymptoms?.join(' ')}`,
+          // Se empresa for global, usar um ObjectId fixo para desenvolvimento
+          const searchCompanyId = this.companyId === 'global' ? '507f1f77bcf86cd799439011' : this.companyId;
+          
+          const ragResult = await RAGAnalysisService.searchRelevantContext(
             'ifm',
-            this.companyId
+            { previousAnalyses, systemsData: patient },
+            searchCompanyId,
+            patient,
+            6
           );
+          ragContext = ragResult.contextSummary;
+          ragMetadata = {
+            documentsUsed: ragResult.relevantDocuments.length,
+            searchQueries: ragResult.searchQueries,
+            evidenceLevel: ragResult.specificContext?.evidenceLevel || 'baixa',
+            protocolsFound: ragResult.specificContext?.protocols?.length || 0
+          };
+          console.log('🎯 RAG Matriz IFM ativado:', ragMetadata);
         } catch (error) {
           console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
           ragContext = '';
         }
       }
 
-      // Executar análise usando configurações globais
+      // Executar análise usando configurações globais com contexto RAG
       const content = await this.aiService.generateAnalysis(
         'ifm',
         { patientData: patient, previousAnalyses, ragContext }
@@ -453,22 +527,78 @@ export class AnalysisService {
       // Obter configuração da análise de plano de tratamento
       const analysisConfig = await this.aiService.getAnalysisConfig('treatmentPlan');
 
-      // Gerar contexto RAG se habilitado
+      // Buscar contexto RAG especializado para plano de tratamento
       let ragContext = '';
-      if (analysisConfig.ragEnabled && this.companyId !== 'global') {
+      let ragMetadata: any = {};
+      
+      console.log('🎯 === INICIANDO BUSCA RAG PARA PLANO DE TRATAMENTO ===');
+      console.log('📊 Configuração RAG:', { 
+        ragEnabled: analysisConfig.ragEnabled, 
+        companyId: this.companyId,
+        isGlobal: this.companyId === 'global'
+      });
+      
+      // TEMPORÁRIO: Permitir RAG para empresa global para testes
+      if (analysisConfig.ragEnabled) {
         try {
-          ragContext = await this.ragService.generateContext(
-            `plano tratamento ${user.specialization} ${patient.mainSymptoms?.join(' ')}`,
-            'treatmentPlan',
-            this.companyId
+          console.log('🔍 Executando busca RAG para plano de tratamento...');
+          
+          // Se empresa for global, usar um ObjectId fixo para desenvolvimento
+          const searchCompanyId = this.companyId === 'global' ? '507f1f77bcf86cd799439011' : this.companyId;
+          
+          const ragResult = await RAGAnalysisService.searchRelevantContext(
+            'treatment-plan',
+            { 
+              previousAnalyses, 
+              specialization: user.specialization,
+              treatmentGoals: patient.treatmentGoals 
+            },
+            searchCompanyId,
+            patient,
+            7
           );
+          
+          ragContext = ragResult.contextSummary;
+          ragMetadata = {
+            documentsUsed: ragResult.relevantDocuments.length,
+            searchQueries: ragResult.searchQueries,
+            evidenceLevel: ragResult.specificContext?.evidenceLevel || 'baixa',
+            protocolsFound: ragResult.specificContext?.protocols?.length || 0,
+            clinicalRecommendations: ragResult.specificContext?.clinicalRecommendations?.length || 0
+          };
+          
+          console.log('✅ RAG Plano de Tratamento ativado com sucesso!');
+          console.log('📋 Metadados RAG:', ragMetadata);
+          console.log('📄 Documentos encontrados:', ragResult.relevantDocuments.map(doc => ({
+            fileName: doc.fileName,
+            score: doc.score,
+            category: doc.category
+          })));
+          console.log('🔍 Queries de busca utilizadas:', ragResult.searchQueries);
+          console.log('📝 Tamanho do contexto gerado:', ragContext.length, 'caracteres');
+          
+          if (ragResult.relevantDocuments.length === 0) {
+            console.log('⚠️ ATENÇÃO: Nenhum documento RAG encontrado para plano de tratamento');
+          }
+          
         } catch (error) {
-          console.log('RAG falhou, continuando análise sem contexto RAG:', error instanceof Error ? error.message : error);
+          console.log('❌ RAG falhou para plano de tratamento:', error instanceof Error ? error.message : error);
+          console.log('🔄 Continuando análise sem contexto RAG...');
           ragContext = '';
         }
+      } else {
+        console.log('⏭️ RAG desabilitado - pulando busca RAG');
       }
 
-      // Executar análise usando configurações globais
+      console.log('🤖 Iniciando geração de análise com IA...');
+      console.log('📊 Dados para IA:', {
+        patientName: patient.name,
+        previousAnalysesCount: previousAnalyses.length,
+        ragContextSize: ragContext.length,
+        hasRAGContext: ragContext.length > 0
+      });
+
+      // Executar análise usando configurações globais com contexto RAG
       const content = await this.aiService.generateAnalysis(
         'treatmentPlan',
         { patientData: patient, previousAnalyses, ragContext }
@@ -476,14 +606,17 @@ export class AnalysisService {
 
       const processingTime = Date.now() - startTime;
 
+      // Salvar análise no banco
       const analysis = new Analysis({
         patient: this.patientId,
         professional: this.userId,
         company: this.companyId === 'global' ? new mongoose.Types.ObjectId() : this.companyId,
         type: 'treatment',
         status: 'completed',
-        inputData: {
-          professionalType: user.specialization || 'outro'
+        inputData: { 
+          previousAnalyses: previousAnalyses.map(a => a._id),
+          professionalType: user.specialization || 'medico',
+          therapeuticGoals: patient.treatmentGoals
         },
         result: {
           rawOutput: content,
@@ -509,6 +642,9 @@ export class AnalysisService {
       });
 
       await analysis.save();
+      
+      console.log('💾 Análise de plano de tratamento salva com sucesso');
+      console.log('🎯 === BUSCA RAG PARA PLANO DE TRATAMENTO CONCLUÍDA ===');
 
       return {
         id: analysis._id.toString(),
@@ -517,10 +653,11 @@ export class AnalysisService {
         status: 'completed',
         createdAt: analysis.createdAt,
         processingTime,
+        ragMetadata
       };
 
     } catch (error) {
-      console.error('Erro na análise do plano de tratamento:', error);
+      console.error('❌ Erro na análise de plano de tratamento:', error);
       throw error;
     }
   }

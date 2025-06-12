@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { ArrowLeftIcon, UserIcon, CalendarIcon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, AlertCircleIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import DashboardLayout from '@/components/DashboardLayout'
 
 // Função para renderizar markdown simples
 const renderMarkdown = (text: string) => {
@@ -355,30 +356,34 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ id: s
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
-          <div className="space-y-4">
-            <div className="h-32 bg-gray-200 rounded"></div>
-            <div className="h-64 bg-gray-200 rounded"></div>
+      <DashboardLayout>
+        <div className="container mx-auto p-6">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+            <div className="space-y-4">
+              <div className="h-32 bg-gray-200 rounded"></div>
+              <div className="h-64 bg-gray-200 rounded"></div>
+            </div>
           </div>
         </div>
-      </div>
+      </DashboardLayout>
     )
   }
 
   if (error || !analysis) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center py-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            {error || 'Análise não encontrada'}
-          </h2>
-          <Link href="/analyses">
-            <Button>Voltar para análises</Button>
-          </Link>
+      <DashboardLayout>
+        <div className="container mx-auto p-6">
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              {error || 'Análise não encontrada'}
+            </h2>
+            <Link href="/analyses">
+              <Button>Voltar para análises</Button>
+            </Link>
+          </div>
         </div>
-      </div>
+      </DashboardLayout>
     )
   }
 
@@ -387,7 +392,8 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ id: s
   const professionalName = analysis.professional?.name || 'Profissional não identificado'
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <DashboardLayout>
+      <div className="container mx-auto p-6 max-w-4xl">
       <div className="flex items-center gap-4 mb-6">
         {patientId && (
           <Link href={`/patients/${patientId}`}>
@@ -551,5 +557,6 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ id: s
         </div>
       </div>
     </div>
+    </DashboardLayout>
   )
 } 
