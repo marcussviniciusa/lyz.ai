@@ -152,16 +152,66 @@ export class AIService {
     // Substituir placeholders de dados da paciente
     if (context.patientData) {
       const patient = context.patientData;
+      
+      // Informações básicas
       processedTemplate = processedTemplate
         .replace(/\{\{patientName\}\}/g, patient.name || 'Não informado')
         .replace(/\{\{patientAge\}\}/g, patient.age?.toString() || 'Não informado')
+        .replace(/\{\{height\}\}/g, patient.height?.toString() || 'Não informado')
+        .replace(/\{\{weight\}\}/g, patient.weight?.toString() || 'Não informado');
+
+      // História menstrual
+      const menstrualHistory = patient.menstrualHistory || {};
+      processedTemplate = processedTemplate
+        .replace(/\{\{menarche\}\}/g, menstrualHistory.menarche?.toString() || 'Não informado')
+        .replace(/\{\{cycleLength\}\}/g, menstrualHistory.cycleLength?.toString() || 'Não informado')
+        .replace(/\{\{menstruationLength\}\}/g, menstrualHistory.menstruationLength?.toString() || 'Não informado')
+        .replace(/\{\{lastMenstruation\}\}/g, menstrualHistory.lastMenstruation ? new Date(menstrualHistory.lastMenstruation).toLocaleDateString('pt-BR') : 'Não informado')
+        .replace(/\{\{menopausalStatus\}\}/g, menstrualHistory.menopausalStatus || 'Não informado')
+        .replace(/\{\{contraceptiveUse\}\}/g, menstrualHistory.contraceptiveUse || 'Nenhum');
+
+      // Sintomas principais
+      const symptomsText = patient.mainSymptoms?.map(s => `${s.symptom} (prioridade ${s.priority})`).join(', ') || 'Nenhum sintoma principal registrado';
+      processedTemplate = processedTemplate.replace(/\{\{mainSymptoms\}\}/g, symptomsText);
+
+      // Histórico médico
+      const medicalHistory = patient.medicalHistory || {};
+      processedTemplate = processedTemplate
+        .replace(/\{\{personalHistory\}\}/g, medicalHistory.personalHistory || 'Não informado')
+        .replace(/\{\{familyHistory\}\}/g, medicalHistory.familyHistory || 'Não informado')
+        .replace(/\{\{allergies\}\}/g, medicalHistory.allergies?.join(', ') || 'Nenhuma alergia conhecida')
+        .replace(/\{\{previousTreatments\}\}/g, medicalHistory.previousTreatments?.join(', ') || 'Nenhum tratamento anterior registrado');
+
+      // Medicamentos
+      const medicationsText = patient.medications?.map(m => `${m.name} - ${m.dosage} (${m.frequency}) - ${m.type}`).join('\n') || 'Nenhum medicamento ou suplemento atual';
+      processedTemplate = processedTemplate.replace(/\{\{medications\}\}/g, medicationsText);
+
+      // Estilo de vida
+      const lifestyle = patient.lifestyle || {};
+      processedTemplate = processedTemplate
+        .replace(/\{\{sleepQuality\}\}/g, lifestyle.sleepQuality || 'Não informado')
+        .replace(/\{\{sleepHours\}\}/g, lifestyle.sleepHours?.toString() || 'Não informado')
+        .replace(/\{\{exerciseFrequency\}\}/g, lifestyle.exerciseFrequency || 'Não informado')
+        .replace(/\{\{exerciseType\}\}/g, lifestyle.exerciseType || 'Não especificado')
+        .replace(/\{\{stressLevel\}\}/g, lifestyle.stressLevel || 'Não informado')
+        .replace(/\{\{nutritionQuality\}\}/g, lifestyle.nutritionQuality || 'Não informado')
+        .replace(/\{\{relationshipQuality\}\}/g, lifestyle.relationshipQuality || 'Não informado');
+
+      // Objetivos de tratamento
+      const treatmentGoals = patient.treatmentGoals || {};
+      processedTemplate = processedTemplate
+        .replace(/\{\{goals\}\}/g, treatmentGoals.goals?.join(', ') || 'Não definido')
+        .replace(/\{\{expectations\}\}/g, treatmentGoals.expectations || 'Não informado')
+        .replace(/\{\{additionalNotes\}\}/g, treatmentGoals.additionalNotes || 'Nenhuma nota adicional');
+
+      // Campos antigos (compatibilidade)
+      processedTemplate = processedTemplate
         .replace(/\{\{lifeCycle\}\}/g, patient.lifeCycle || 'Não informado')
-        .replace(/\{\{mainSymptoms\}\}/g, patient.mainSymptoms?.join(', ') || 'Não informado')
         .replace(/\{\{menstrualCycle\}\}/g, patient.menstrualCycle || 'Não informado')
         .replace(/\{\{relevantHistory\}\}/g, patient.relevantHistory || 'Não informado')
         .replace(/\{\{constitution\}\}/g, patient.constitution || 'Não informado')
-        .replace(/\{\{sleepQuality\}\}/g, patient.sleepQuality || 'Não informado')
-        .replace(/\{\{stressLevel\}\}/g, patient.stressLevel || 'Não informado')
+        .replace(/\{\{sleepQuality\}\}/g, lifestyle.sleepQuality || patient.sleepQuality || 'Não informado')
+        .replace(/\{\{stressLevel\}\}/g, lifestyle.stressLevel || patient.stressLevel || 'Não informado')
         .replace(/\{\{digestion\}\}/g, patient.digestion || 'Não informado')
         .replace(/\{\{menstrualPattern\}\}/g, patient.menstrualPattern || 'Não informado')
         .replace(/\{\{emotionalHistory\}\}/g, patient.emotionalHistory || 'Não informado');

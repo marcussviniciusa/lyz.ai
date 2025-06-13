@@ -747,9 +747,213 @@ export default function ChronologyAnalysisPage() {
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <h2 className="text-xl font-semibold mb-6">Resultado da Análise Cronológica</h2>
           
-          {result.content ? (
+          {/* Análise Estruturada */}
+          {result.analysis ? (
+            <div className="space-y-8">
+              {/* Timeline Consolidada */}
+              {result.analysis.consolidatedTimeline && result.analysis.consolidatedTimeline.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900">Timeline Consolidada</h3>
+                  <div className="space-y-4">
+                    {result.analysis.consolidatedTimeline.map((period: any, index: number) => (
+                      <div key={index} className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                        <h4 className="font-medium text-blue-900 mb-2">{period.period}</h4>
+                        <p className="text-blue-800 mb-3 font-medium">Fase: {period.phase}</p>
+                        {period.keyEvents && period.keyEvents.length > 0 && (
+                          <div className="mb-3">
+                            <strong className="text-blue-900">Eventos-chave:</strong>
+                            <ul className="list-disc list-inside text-blue-800 mt-1">
+                              {period.keyEvents.map((event: string, i: number) => (
+                                <li key={i}>{event}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {period.hormonalChanges && period.hormonalChanges.length > 0 && (
+                          <div className="mb-3">
+                            <strong className="text-blue-900">Mudanças Hormonais:</strong>
+                            <ul className="list-disc list-inside text-blue-800 mt-1">
+                              {period.hormonalChanges.map((change: string, i: number) => (
+                                <li key={i}>{change}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Padrões Identificados */}
+              {result.analysis.patterns && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900">Padrões Identificados</h3>
+                  
+                  {/* Padrões Cíclicos */}
+                  {result.analysis.patterns.cyclicalPatterns && result.analysis.patterns.cyclicalPatterns.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="font-medium mb-3 text-purple-900">Padrões Cíclicos</h4>
+                      <div className="grid gap-4">
+                        {result.analysis.patterns.cyclicalPatterns.map((pattern: any, index: number) => (
+                          <div key={index} className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                            <div className="mb-2">
+                              <strong className="text-purple-900">{pattern.pattern}</strong>
+                              <span className="ml-2 text-purple-700 text-sm">({pattern.frequency})</span>
+                            </div>
+                            <p className="text-purple-800">{pattern.description}</p>
+                            {pattern.relatedHormones && pattern.relatedHormones.length > 0 && (
+                              <div className="mt-2">
+                                <strong className="text-purple-900 text-sm">Hormônios relacionados:</strong>
+                                <span className="ml-2 text-purple-700 text-sm">
+                                  {pattern.relatedHormones.join(', ')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Padrões de Gatilho */}
+                  {result.analysis.patterns.triggerPatterns && result.analysis.patterns.triggerPatterns.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="font-medium mb-3 text-orange-900">Padrões de Gatilho</h4>
+                      <div className="grid gap-4">
+                        {result.analysis.patterns.triggerPatterns.map((trigger: any, index: number) => (
+                          <div key={index} className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                            <div className="mb-2">
+                              <strong className="text-orange-900">{trigger.trigger}</strong>
+                              <span className="ml-2 text-orange-700 text-sm">({trigger.timeframe})</span>
+                            </div>
+                            <p className="text-orange-800 mb-2">{trigger.mechanism}</p>
+                            {trigger.symptoms && trigger.symptoms.length > 0 && (
+                              <div>
+                                <strong className="text-orange-900 text-sm">Sintomas:</strong>
+                                <span className="ml-2 text-orange-700 text-sm">
+                                  {trigger.symptoms.join(', ')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Momentos Críticos */}
+              {result.analysis.criticalMoments && result.analysis.criticalMoments.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900">Momentos Críticos</h3>
+                  <div className="space-y-4">
+                    {result.analysis.criticalMoments.map((moment: any, index: number) => (
+                      <div key={index} className="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <div className="flex justify-between items-start mb-2">
+                          <strong className="text-red-900">{moment.event}</strong>
+                          <span className="text-red-700 text-sm">
+                            {moment.date && new Date(moment.date).toLocaleDateString('pt-BR')}
+                          </span>
+                        </div>
+                        <p className="text-red-800 mb-3">{moment.impact}</p>
+                        {moment.cascadeEffects && moment.cascadeEffects.length > 0 && (
+                          <div className="mb-3">
+                            <strong className="text-red-900 text-sm">Efeitos em cascata:</strong>
+                            <ul className="list-disc list-inside text-red-800 mt-1 text-sm">
+                              {moment.cascadeEffects.map((effect: string, i: number) => (
+                                <li key={i}>{effect}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        <div className="bg-red-100 p-3 rounded">
+                          <strong className="text-red-900 text-sm">Intervenção recomendada:</strong>
+                          <p className="text-red-800 text-sm mt-1">{moment.recommendedIntervention}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Prognóstico Temporal */}
+              {result.analysis.temporalPrognosis && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900">Prognóstico Temporal</h3>
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <h4 className="font-medium text-green-900 mb-2">Curto Prazo (3-6 meses)</h4>
+                      <p className="text-green-800 text-sm">{result.analysis.temporalPrognosis.shortTerm}</p>
+                    </div>
+                    <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                      <h4 className="font-medium text-yellow-900 mb-2">Médio Prazo (6-12 meses)</h4>
+                      <p className="text-yellow-800 text-sm">{result.analysis.temporalPrognosis.mediumTerm}</p>
+                    </div>
+                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                      <h4 className="font-medium text-blue-900 mb-2">Longo Prazo (1-2 anos)</h4>
+                      <p className="text-blue-800 text-sm">{result.analysis.temporalPrognosis.longTerm}</p>
+                    </div>
+                  </div>
+                  {result.analysis.temporalPrognosis.keyMilestones && result.analysis.temporalPrognosis.keyMilestones.length > 0 && (
+                    <div className="mt-4 bg-gray-50 p-4 rounded-lg">
+                      <strong className="text-gray-900">Marcos importantes:</strong>
+                      <ul className="list-disc list-inside text-gray-800 mt-2">
+                        {result.analysis.temporalPrognosis.keyMilestones.map((milestone: string, i: number) => (
+                          <li key={i}>{milestone}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Síntese Cronológica */}
+              {result.analysis.chronologicalSynthesis && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900">Síntese Cronológica</h3>
+                  <div className="bg-gray-50 p-6 rounded-lg border">
+                    <div 
+                      className="text-gray-800 leading-relaxed"
+                      dangerouslySetInnerHTML={{ 
+                        __html: renderMarkdown(result.analysis.chronologicalSynthesis) 
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Metadados da IA */}
+              {result.aiMetadata && (
+                <div className="bg-gray-50 p-4 rounded-lg mt-8">
+                  <h4 className="font-medium text-gray-900 mb-2">Informações da Análise</h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Modelo:</span>
+                      <span className="ml-2">{result.aiMetadata.model}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Total de tokens:</span>
+                      <span className="ml-2">{result.aiMetadata.totalTokens?.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Custo:</span>
+                      <span className="ml-2">
+                        {result.aiMetadata.cost ? `$${result.aiMetadata.cost.toFixed(4)}` : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Data:</span>
+                      <span className="ml-2">{result.createdAt ? new Date(result.createdAt).toLocaleString('pt-BR') : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : result.content ? (
+            // Fallback para conteúdo em markdown
             <div className="space-y-6">
-              {/* Conteúdo Principal */}
               <div className="prose max-w-none">
                 <div 
                   className="text-gray-800 leading-relaxed"
@@ -757,31 +961,30 @@ export default function ChronologyAnalysisPage() {
                     __html: renderMarkdown(result.content) 
                   }}
                 />
-            </div>
+              </div>
 
-            {/* Metadados */}
               <div className="bg-gray-50 p-4 rounded-lg mt-8">
-              <h4 className="font-medium text-gray-900 mb-2">Informações da Análise</h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
+                <h4 className="font-medium text-gray-900 mb-2">Informações da Análise</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
                     <span className="text-gray-600">Tipo:</span>
                     <span className="ml-2 capitalize">{result.type || 'Cronologia'}</span>
-                </div>
-                <div>
+                  </div>
+                  <div>
                     <span className="text-gray-600">Status:</span>
                     <span className="ml-2 capitalize">{result.status || 'Concluído'}</span>
-                </div>
-                <div>
+                  </div>
+                  <div>
                     <span className="text-gray-600">Tempo de processamento:</span>
                     <span className="ml-2">{result.processingTime ? `${(result.processingTime / 1000).toFixed(1)}s` : 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="text-gray-600">Data:</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Data:</span>
                     <span className="ml-2">{result.createdAt ? new Date(result.createdAt).toLocaleString('pt-BR') : 'N/A'}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
           ) : (
             <div className="text-center py-8">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
@@ -800,15 +1003,15 @@ export default function ChronologyAnalysisPage() {
           )}
 
           <div className="flex justify-between mt-8">
-              <button
-                onClick={() => {
-                  setStep(1);
-                  setResult(null);
-                }}
+            <button
+              onClick={() => {
+                setStep(1);
+                setResult(null);
+              }}
               className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Nova Análise
-              </button>
+            >
+              Nova Análise
+            </button>
           </div>
         </div>
       )}
