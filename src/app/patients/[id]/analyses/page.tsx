@@ -28,6 +28,7 @@ export default function PatientAnalysesPage({ params }: { params: Promise<{ id: 
   const [patient, setPatient] = useState<Patient | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedAnalyses, setSelectedAnalyses] = useState<string[]>([])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,7 +49,22 @@ export default function PatientAnalysesPage({ params }: { params: Promise<{ id: 
           throw new Error('Erro ao carregar análises')
         }
         const analysesData = await analysesResponse.json()
-        setAnalyses(analysesData)
+        const arr = analysesData.data || analysesData.analyses || analysesData || []
+        setAnalyses(
+          Array.isArray(arr)
+            ? arr.map((a) => ({
+                _id: a._id,
+                type: a.type,
+                description: a.description || '',
+                result: typeof a.result === 'string' ? a.result : (a.result?.rawOutput || ''),
+                recommendations: a.recommendations || a.result?.recommendations || [],
+                status: a.status,
+                professional: typeof a.professional === 'object' ? (a.professional?.name || '') : (a.professional || ''),
+                createdAt: a.createdAt,
+                updatedAt: a.updatedAt,
+              }))
+            : []
+        )
       } catch (err) {
         console.error('Erro ao buscar dados:', err)
         setError(err instanceof Error ? err.message : 'Erro desconhecido')
@@ -100,6 +116,42 @@ export default function PatientAnalysesPage({ params }: { params: Promise<{ id: 
       completed: 'bg-green-100 text-green-800'
     }
     return colors[status as keyof typeof colors] || 'bg-gray-100 text-gray-800'
+  }
+
+  // Função para lidar com seleção/deseleção
+  const handleSelectAnalysis = (id: string) => {
+    setSelectedAnalyses((prev) =>
+      prev.includes(id) ? prev.filter((aid) => aid !== id) : [...prev, id]
+    )
+  }
+
+  // Função para selecionar/desmarcar todas
+  const handleSelectAll = () => {
+    if (selectedAnalyses.length === analyses.length) {
+      setSelectedAnalyses([])
+    } else {
+      setSelectedAnalyses(analyses.map((a) => a._id))
+    }
+  }
+
+  // Função para gerar PDF (chama endpoint futuro)
+  const handleGeneratePDF = async () => {
+    if (selectedAnalyses.length === 0) return
+    try {
+      const response = await fetch('/api/delivery/plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analysisIds: selectedAnalyses, patientId: resolvedParams.id })
+      })
+      if (response.ok) {
+        // Redireciona para /delivery após gerar
+        router.push('/delivery')
+      } else {
+        alert('Erro ao gerar PDF do plano')
+      }
+    } catch (err) {
+      alert('Erro ao gerar PDF do plano')
+    }
   }
 
   if (loading) {
@@ -192,97 +244,124 @@ export default function PatientAnalysesPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
+      {/* Botão de geração de PDF */}
+      {analyses.length > 0 && (
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <button
+              className="px-3 py-1 text-sm bg-gray-100 text-gray-800 rounded hover:bg-gray-200 mr-2"
+              onClick={handleSelectAll}
+            >
+              {selectedAnalyses.length === analyses.length ? 'Desmarcar Todas' : 'Selecionar Todas'}
+            </button>
+            <span className="text-sm text-gray-600">{selectedAnalyses.length} selecionada(s)</span>
+          </div>
+          <button
+            className={`px-4 py-2 rounded text-white font-semibold transition-colors ${selectedAnalyses.length === 0 ? 'bg-gray-300 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+            disabled={selectedAnalyses.length === 0}
+            onClick={handleGeneratePDF}
+          >
+            Gerar Plano em PDF
+          </button>
+        </div>
+      )}
+
       {/* Analyses List */}
       {analyses.length > 0 ? (
         <div className="space-y-4">
           {analyses.map((analysis) => (
-            <div key={analysis._id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
-              <div className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <span className="text-2xl">{getAnalysisTypeIcon(analysis.type)}</span>
-                      <div>
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {getAnalysisTypeLabel(analysis.type)}
-                        </h3>
-                        <p className="text-sm text-gray-600">
-                          Criada em {new Date(analysis.createdAt).toLocaleDateString('pt-BR')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">Descrição:</h4>
-                      <p className="text-gray-600 text-sm">{analysis.description}</p>
-                    </div>
-
-                    {analysis.result && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-1">Resultado:</h4>
-                        <p className="text-gray-600 text-sm line-clamp-3">{analysis.result}</p>
-                      </div>
-                    )}
-
-                    {analysis.recommendations && analysis.recommendations.length > 0 && (
-                      <div className="mb-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-1">Recomendações:</h4>
-                        <ul className="text-gray-600 text-sm space-y-1">
-                          {analysis.recommendations.slice(0, 3).map((rec, index) => (
-                            <li key={index} className="flex items-start">
-                              <span className="text-green-500 mr-2">•</span>
-                              <span>{rec}</span>
-                            </li>
-                          ))}
-                          {analysis.recommendations.length > 3 && (
-                            <li className="text-gray-500 text-xs">
-                              ... e mais {analysis.recommendations.length - 3} recomendações
-                            </li>
-                          )}
-                        </ul>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <span>ID: {analysis._id}</span>
-                      <span>•</span>
-                      <span>Profissional: {analysis.professional}</span>
+            <div key={analysis._id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow flex">
+              <div className="flex items-start p-6">
+                <input
+                  type="checkbox"
+                  className="mr-4 mt-2 h-5 w-5 accent-blue-600"
+                  checked={selectedAnalyses.includes(analysis._id)}
+                  onChange={() => handleSelectAnalysis(analysis._id)}
+                  aria-label="Selecionar análise"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-2xl">{getAnalysisTypeIcon(analysis.type)}</span>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {getAnalysisTypeLabel(analysis.type)}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        Criada em {new Date(analysis.createdAt).toLocaleDateString('pt-BR')}
+                      </p>
                     </div>
                   </div>
+                  
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Descrição:</h4>
+                    <p className="text-gray-600 text-sm">{analysis.description}</p>
+                  </div>
 
-                  <div className="flex flex-col items-end gap-2 ml-4">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(analysis.status)}`}>
-                      {getStatusLabel(analysis.status)}
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => router.push(`/analyses/${analysis._id}`)}
-                        className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
-                      >
-                        Ver Resultados
-                      </button>
-                      {analysis.status === 'pending' && (
-                        <button
-                          onClick={() => {
-                            // Redirecionar para execução da análise
-                            const analysisRoutes: { [key: string]: string } = {
-                              'laboratory': '/analyses/laboratory',
-                              'tcm': '/analyses/tcm',
-                              'chronology': '/analyses/chronology',
-                              'ifm': '/analyses/ifm',
-                              'treatment': '/analyses/treatment-plan'
-                            }
-                            const route = analysisRoutes[analysis.type]
-                            if (route) {
-                              router.push(`${route}?patientId=${resolvedParams.id}&analysisId=${analysis._id}`)
-                            }
-                          }}
-                          className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Executar
-                        </button>
-                      )}
+                  {analysis.result && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-1">Resultado:</h4>
+                      <p className="text-gray-600 text-sm line-clamp-3">{analysis.result}</p>
                     </div>
+                  )}
+
+                  {analysis.recommendations && analysis.recommendations.length > 0 && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-1">Recomendações:</h4>
+                      <ul className="text-gray-600 text-sm space-y-1">
+                        {analysis.recommendations.slice(0, 3).map((rec, index) => (
+                          <li key={index} className="flex items-start">
+                            <span className="text-green-500 mr-2">•</span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                        {analysis.recommendations.length > 3 && (
+                          <li className="text-gray-500 text-xs">
+                            ... e mais {analysis.recommendations.length - 3} recomendações
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <span>ID: {analysis._id}</span>
+                    <span>•</span>
+                    <span>Profissional: {analysis.professional}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-end gap-2 ml-4">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(analysis.status)}`}>
+                    {getStatusLabel(analysis.status)}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => router.push(`/analyses/${analysis._id}`)}
+                      className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Ver Resultados
+                    </button>
+                    {analysis.status === 'pending' && (
+                      <button
+                        onClick={() => {
+                          // Redirecionar para execução da análise
+                          const analysisRoutes: { [key: string]: string } = {
+                            'laboratory': '/analyses/laboratory',
+                            'tcm': '/analyses/tcm',
+                            'chronology': '/analyses/chronology',
+                            'ifm': '/analyses/ifm',
+                            'treatment': '/analyses/treatment-plan'
+                          }
+                          const route = analysisRoutes[analysis.type]
+                          if (route) {
+                            router.push(`${route}?patientId=${resolvedParams.id}&analysisId=${analysis._id}`)
+                          }
+                        }}
+                        className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        Executar
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -3,6 +3,11 @@ import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import Analysis from '@/models/Analysis'
 import User from '@/models/User'
+import Patient from '@/models/Patient'
+import DeliveryPlan from '@/models/DeliveryPlan'
+import { generateIntegratedPlanPDF } from '@/lib/generate-plan-pdf'
+import MinIOService from '@/lib/minio'
+import mongoose from 'mongoose'
 
 export async function GET(request: Request) {
   try {
@@ -19,95 +24,20 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Usuário não encontrado' }, { status: 404 })
     }
 
-    // Buscar análises que estão prontas para formar planos completos
-    const analysisGroups = await Analysis.aggregate([
-      {
-        $match: {
-          companyId: user.companyId,
-          status: { $in: ['completed', 'approved'] }
-        }
-      },
-      {
-        $group: {
-          _id: '$patient',
-          analyses: { $push: '$$ROOT' },
-          lastUpdated: { $max: '$updatedAt' }
-        }
-      },
-      {
-        $match: {
-          'analyses.5': { $exists: true } // Pacientes com pelo menos 5 análises
-        }
-      },
-      {
-        $lookup: {
-          from: 'patients',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'patient'
-        }
-      },
-      {
-        $lookup: {
-          from: 'users',
-          localField: 'analyses.professional',
-          foreignField: '_id',
-          as: 'professional'
-        }
-      },
-      {
-        $sort: { lastUpdated: -1 }
-      }
-    ])
+    // Buscar planos de entrega salvos no banco
+    const query: any = {}
+    
+    // Filtrar por empresa (exceto superadmin)
+    if (session.user.role !== 'superadmin') {
+      query.company = user.company
+    }
 
-    // Transformar em planos de entrega
-    const plans = analysisGroups.map(group => {
-      const patient = group.patient[0]
-      const professional = group.professional[0]
-      const analyses = group.analyses
-
-      // Determinar status do plano baseado nas análises
-      const allApproved = analyses.every((a: any) => a.status === 'approved')
-      const hasComplete = analyses.length >= 5
-
-      let planStatus = 'draft'
-      if (hasComplete && allApproved) {
-        planStatus = 'ready_for_delivery'
-      }
-
-      // Gerar plano final consolidado
-      const finalPlan = {
-        executiveSummary: generateExecutiveSummary(analyses),
-        laboratoryFindings: extractLaboratoryFindings(analyses),
-        tcmDiagnosis: extractTCMDiagnosis(analyses),
-        chronologyInsights: extractChronologyInsights(analyses),
-        ifmAssessment: extractIFMAssessment(analyses),
-        treatmentPlan: extractTreatmentPlan(analyses),
-        recommendations: extractRecommendations(analyses),
-        followUpPlan: generateFollowUpPlan(analyses)
-      }
-
-      return {
-        _id: `plan_${patient._id}`,
-        patient: {
-          _id: patient._id,
-          name: patient.name,
-          email: patient.email,
-          phone: patient.phone
-        },
-        professional: {
-          _id: professional._id,
-          name: professional.name,
-          email: professional.email
-        },
-        analyses: analyses,
-        finalPlan: finalPlan,
-        status: planStatus,
-        deliveryMethod: 'email',
-        createdAt: group.lastUpdated,
-        updatedAt: group.lastUpdated
-      }
-    })
+    const plans = await DeliveryPlan.find(query)
+      .populate('patient', 'name email phone')
+      .populate('professional', 'name email')
+      .populate('company', 'name')
+      .populate('analyses', 'type status createdAt')
+      .sort({ createdAt: -1 })
 
     return Response.json({
       success: true,
@@ -120,6 +50,114 @@ export async function GET(request: Request) {
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session) {
+      return Response.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+    
+    await dbConnect()
+    
+    const user = await User.findOne({ email: session.user?.email })
+    if (!user) {
+      return Response.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+    
+    const body = await request.json()
+    const { analysisIds, patientId } = body
+    
+    if (!Array.isArray(analysisIds) || !patientId) {
+      return Response.json({ error: 'Dados inválidos' }, { status: 400 })
+    }
+    
+    // Buscar análises selecionadas
+    const analyses = await Analysis.find({ 
+      _id: { $in: analysisIds }, 
+      patient: patientId 
+    }).populate('patient', 'name')
+    
+    if (!analyses || analyses.length === 0) {
+      return Response.json({ error: 'Nenhuma análise encontrada' }, { status: 404 })
+    }
+
+    // Buscar dados do paciente
+    const patient = await Patient.findById(patientId)
+    if (!patient) {
+      return Response.json({ error: 'Paciente não encontrado' }, { status: 404 })
+    }
+    
+    // Preparar dados do profissional
+    const professional = {
+      name: user.name || 'Profissional',
+      email: user.email
+    }
+    
+    // Título do plano
+    const title = `Plano Integrado - ${patient.name}`
+    
+    // Gerar PDF real
+    const pdfBuffer = await generateIntegratedPlanPDF(patient, analyses, professional)
+    
+    // Converter Uint8Array para Buffer se necessário
+    const buffer = Buffer.from(pdfBuffer)
+    
+    // Upload para MinIO
+    const fileName = `plano-${patient.name.replace(/\s+/g, '-')}-${Date.now()}.pdf`
+    const uploadResult = await MinIOService.uploadFile(
+      buffer,
+      fileName,
+      { 
+        folder: 'delivery-plans', 
+        contentType: 'application/pdf',
+        filename: fileName
+      }
+    )
+    
+    // Criar ObjectIds válidos
+    const professionalId = mongoose.Types.ObjectId.isValid(user._id) 
+      ? user._id 
+      : new mongoose.Types.ObjectId()
+    
+    const companyId = user.company && mongoose.Types.ObjectId.isValid(user.company)
+      ? user.company
+      : new mongoose.Types.ObjectId()
+    
+    // Salvar plano no banco
+    const deliveryPlan = new DeliveryPlan({
+      patient: new mongoose.Types.ObjectId(patientId),
+      professional: professionalId,
+      company: companyId,
+      analyses: analysisIds.map(id => new mongoose.Types.ObjectId(id)),
+      pdfFile: {
+        key: uploadResult.key,
+        url: uploadResult.url,
+        size: uploadResult.size,
+        generatedAt: new Date()
+      },
+      title: `Plano Integrado - ${patient.name}`,
+      description: `Plano de tratamento baseado em ${analyses.length} análise(s)`,
+      status: 'generated'
+    })
+    
+    await deliveryPlan.save()
+    
+    return Response.json({ 
+      success: true, 
+      planId: deliveryPlan._id,
+      pdfUrl: uploadResult.url,
+      message: 'Plano gerado e salvo com sucesso'
+    })
+    
+  } catch (error) {
+    console.error('Erro ao gerar plano PDF:', error)
+    return Response.json({ 
+      error: 'Erro ao gerar plano PDF',
+      details: error instanceof Error ? error.message : 'Erro desconhecido'
+    }, { status: 500 })
   }
 }
 

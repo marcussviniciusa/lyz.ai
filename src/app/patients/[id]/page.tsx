@@ -311,6 +311,12 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
             Editar
           </button>
           <button
+            onClick={() => router.push(`/patients/${patient._id}/analyses`)}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Ver Todas Análises
+          </button>
+          <button
             onClick={() => router.push(`/patients/${patient._id}/analyses/new`)}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
           >

@@ -1,54 +1,141 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import dbConnect from '@/lib/db'
 import AnalysisTemplate from '@/models/AnalysisTemplate'
+import User from '@/models/User'
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { type: string } }
+  request: Request,
+  { params }: { params: Promise<{ type: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     
     if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+      return Response.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     await dbConnect()
-    
-    const { type } = params
-    const companyId = session.user?.company || 'default'
-    
-    // Validar tipo
-    const validTypes = ['laboratory', 'tcm', 'chronology', 'ifm', 'treatment-plan']
-    if (!validTypes.includes(type)) {
-      return NextResponse.json(
-        { error: 'Tipo de análise inválido' },
-        { status: 400 }
-      )
+
+    const user = await User.findOne({ email: session.user?.email })
+    if (!user) {
+      return Response.json({ error: 'Usuário não encontrado' }, { status: 404 })
     }
+
+    const { type } = await params
+
+    // Buscar template por tipo
+    const query: any = { type }
     
-    // Buscar templates do tipo
-    const templates = await AnalysisTemplate.find({
-      companyId,
-      type,
-      isActive: true
-    }).sort({ isDefault: -1, usageCount: -1, name: 1 })
-    
-    // Buscar template padrão
-    const defaultTemplate = templates.find(t => t.isDefault)
-    
-    return NextResponse.json({
+    // Filtrar por empresa (exceto superadmin)
+    if (session.user.role !== 'superadmin') {
+      query.company = user.company
+    }
+
+    const template = await AnalysisTemplate.findOne(query)
+
+    if (!template) {
+      // Retornar template padrão se não encontrar específico da empresa
+      const defaultTemplate = await AnalysisTemplate.findOne({ 
+        type, 
+        isDefault: true 
+      })
+      
+      if (!defaultTemplate) {
+        return Response.json({ error: 'Template não encontrado' }, { status: 404 })
+      }
+      
+      return Response.json({
+        success: true,
+        template: defaultTemplate
+      })
+    }
+
+    return Response.json({
       success: true,
-      templates,
-      defaultTemplate,
-      count: templates.length
+      template: template
     })
 
-  } catch (error: any) {
-    console.error('Erro ao buscar templates por tipo:', error)
-    return NextResponse.json(
+  } catch (error) {
+    console.error('Erro ao buscar template:', error)
+    return Response.json(
+      { error: 'Erro interno do servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ type: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session) {
+      return Response.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    // Apenas admin e superadmin podem editar templates
+    if (!['admin', 'superadmin'].includes(session.user.role)) {
+      return Response.json({ error: 'Permissão negada' }, { status: 403 })
+    }
+
+    await dbConnect()
+
+    const user = await User.findOne({ email: session.user?.email })
+    if (!user) {
+      return Response.json({ error: 'Usuário não encontrado' }, { status: 404 })
+    }
+
+    const { type } = await params
+    const body = await request.json()
+
+    const { prompt, isActive } = body
+
+    if (!prompt) {
+      return Response.json({ error: 'Prompt é obrigatório' }, { status: 400 })
+    }
+
+    // Buscar template existente
+    const query: any = { type }
+    
+    // Filtrar por empresa (exceto superadmin)
+    if (session.user.role !== 'superadmin') {
+      query.company = user.company
+    }
+
+    let template = await AnalysisTemplate.findOne(query)
+
+    if (template) {
+      // Atualizar template existente
+      template.prompt = prompt
+      template.isActive = isActive !== undefined ? isActive : template.isActive
+      template.updatedAt = new Date()
+      await template.save()
+    } else {
+      // Criar novo template para a empresa
+      template = new AnalysisTemplate({
+        type,
+        prompt,
+        isActive: isActive !== undefined ? isActive : true,
+        company: user.company,
+        isDefault: false,
+        createdBy: user._id,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
+      await template.save()
+    }
+
+    return Response.json({
+      success: true,
+      template: template
+    })
+
+  } catch (error) {
+    console.error('Erro ao atualizar template:', error)
+    return Response.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )
@@ -57,19 +144,19 @@ export async function GET(
 
 // Criar template padrão se não existir
 export async function POST(
-  request: NextRequest,
-  { params }: { params: { type: string } }
+  request: Request,
+  { params }: { params: Promise<{ type: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
     
     if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+      return Response.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
     await dbConnect()
     
-    const { type } = params
+    const { type } = await params
     const companyId = session.user?.company || 'default'
     const createdBy = session.user?.id || ''
     
