@@ -10,18 +10,60 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    const url = new URL(request.url)
+    const isPdfGeneration = url.searchParams.get('pdf-access') === 'true'
     
-    if (!session) {
-      return Response.json({ error: 'Não autorizado' }, { status: 401 })
-    }
+    // Se não for para geração de PDF, exigir autenticação normal
+    if (!isPdfGeneration) {
+      const session = await getServerSession(authOptions)
+      
+      if (!session) {
+        return Response.json({ error: 'Não autorizado' }, { status: 401 })
+      }
 
+      await dbConnect()
+
+      const user = await User.findOne({ email: session.user?.email })
+      if (!user) {
+        return Response.json({ error: 'Usuário não encontrado' }, { status: 404 })
+      }
+
+      const { id } = await params
+      const planId = id
+
+      // Validar se é um ObjectId válido
+      if (!mongoose.Types.ObjectId.isValid(planId)) {
+        return Response.json({ error: 'ID do plano inválido' }, { status: 400 })
+      }
+
+      // Buscar o plano
+      const query: any = { _id: planId }
+      
+      // Filtrar por empresa (exceto superadmin)
+      if (session.user.role !== 'superadmin') {
+        query.company = user.company
+      }
+
+      const plan = await DeliveryPlan.findOne(query)
+        .populate('patient', 'name email phone')
+        .populate('professional', 'name email')
+        .populate('company', 'name')
+        .populate('analyses', 'type status createdAt result.rawOutput')
+
+      if (!plan) {
+        return Response.json({ error: 'Plano não encontrado' }, { status: 404 })
+      }
+
+      return Response.json({
+        success: true,
+        plan: plan
+      })
+    }
+    
+    // Para geração de PDF, permitir acesso sem autenticação
+    console.log('🔓 Acesso para geração de PDF detectado')
+    
     await dbConnect()
-
-    const user = await User.findOne({ email: session.user?.email })
-    if (!user) {
-      return Response.json({ error: 'Usuário não encontrado' }, { status: 404 })
-    }
 
     const { id } = await params
     const planId = id
@@ -31,23 +73,15 @@ export async function GET(
       return Response.json({ error: 'ID do plano inválido' }, { status: 400 })
     }
 
-    // Buscar o plano
-    const query: any = { _id: planId }
-    
-    // Filtrar por empresa (exceto superadmin)
-    if (session.user.role !== 'superadmin') {
-      query.company = user.company
-    }
-
-    const plan = await DeliveryPlan.findOne(query)
-      .populate('patient', 'name email phone')
-      .populate('professional', 'name email')
-      .populate('company', 'name')
+    // Buscar o plano sem filtros de empresa para PDF
+    const plan = await DeliveryPlan.findById(planId)
       .populate('analyses', 'type status createdAt result.rawOutput')
 
     if (!plan) {
       return Response.json({ error: 'Plano não encontrado' }, { status: 404 })
     }
+
+    console.log('✅ Plano encontrado para geração de PDF:', plan.title)
 
     return Response.json({
       success: true,

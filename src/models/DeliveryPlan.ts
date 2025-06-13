@@ -10,11 +10,21 @@ export interface IDeliveryPlan extends Document {
   analyses: mongoose.Types.ObjectId[]
   
   // Arquivo PDF gerado
-  pdfFile: {
+  pdfFile?: {
     key: string // Chave no MinIO
     url: string // URL assinada para download
     size: number // Tamanho do arquivo em bytes
     generatedAt: Date
+    lastAccessed?: Date // Última vez que foi acessado
+  }
+  
+  // Arquivo PDF da página renderizada
+  pdfPageFile?: {
+    key: string // Chave no MinIO
+    url: string // URL assinada para download
+    size: number // Tamanho do arquivo em bytes
+    generatedAt: Date
+    lastAccessed?: Date // Última vez que foi acessado
   }
   
   // Status do plano
@@ -61,19 +71,43 @@ const DeliveryPlanSchema = new Schema<IDeliveryPlan>({
   pdfFile: {
     key: {
       type: String,
-      required: true
+      required: false
     },
     url: {
       type: String,
-      required: true
+      required: false
     },
     size: {
       type: Number,
-      required: true
+      required: false
     },
     generatedAt: {
       type: Date,
       default: Date.now
+    },
+    lastAccessed: {
+      type: Date
+    }
+  },
+  pdfPageFile: {
+    key: {
+      type: String,
+      required: false
+    },
+    url: {
+      type: String,
+      required: false
+    },
+    size: {
+      type: Number,
+      required: false
+    },
+    generatedAt: {
+      type: Date,
+      default: Date.now
+    },
+    lastAccessed: {
+      type: Date
     }
   },
   status: {

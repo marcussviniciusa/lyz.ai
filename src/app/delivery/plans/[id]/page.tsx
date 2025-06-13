@@ -282,12 +282,14 @@ export default function DeliveryPlanPage() {
   const [plan, setPlan] = useState<DeliveryPlan | null>(null)
   const [loading, setLoading] = useState(true)
   const [downloading, setDownloading] = useState(false)
+  const [downloadingPage, setDownloadingPage] = useState(false)
+  const [isPrintMode, setIsPrintMode] = useState(false)
   
-  // Verificar se está em modo de impressão
-  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
-  const isPrintMode = searchParams.get('print') === 'true'
-
   useEffect(() => {
+    // Detectar modo de impressão
+    const urlParams = new URLSearchParams(window.location.search)
+    setIsPrintMode(urlParams.get('print') === 'true')
+    
     if (params.id) {
       loadPlan(params.id as string)
     }
@@ -295,75 +297,92 @@ export default function DeliveryPlanPage() {
 
   const loadPlan = async (planId: string) => {
     try {
-      const response = await fetch(`/api/delivery/plans/${planId}`)
+      setLoading(true)
+      
+      // Detectar se é para geração de PDF
+      const urlParams = new URLSearchParams(window.location.search)
+      const isPdfGeneration = urlParams.get('pdf-access') === 'true'
+      
+      const url = isPdfGeneration 
+        ? `/api/delivery/plans/${planId}?pdf-access=true`
+        : `/api/delivery/plans/${planId}`
+      
+      const response = await fetch(url)
       
       if (!response.ok) {
-        throw new Error('Plano não encontrado')
+        throw new Error('Erro ao carregar plano')
       }
       
       const data = await response.json()
       setPlan(data.plan)
     } catch (error) {
       console.error('Erro ao carregar plano:', error)
-      alert('Não foi possível carregar o plano')
     } finally {
       setLoading(false)
     }
   }
 
   const handleDownload = async () => {
+    if (!plan) return
+    
+    setDownloading(true)
     try {
-      setDownloading(true)
-      console.log('🎯 Iniciando download do PDF...')
-      
-      const response = await fetch(`/api/delivery/plans/${params.id}/pdf`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      console.log('📡 Response status:', response.status)
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
+      const response = await fetch(`/api/delivery/plans/${plan._id}/pdf`)
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }))
-        console.error('❌ Erro na resposta:', errorData)
-        throw new Error(errorData.error || `Erro HTTP: ${response.status}`)
+        throw new Error('Erro ao gerar PDF')
       }
       
       const blob = await response.blob()
-      console.log('📄 PDF blob criado, tamanho:', blob.size)
-      
-      if (blob.size === 0) {
-        throw new Error('PDF gerado está vazio')
-      }
-      
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.style.display = 'none'
       a.href = url
-      a.download = `plano-integrado-${plan?.patient.name || 'paciente'}-${new Date().toISOString().split('T')[0]}.pdf`
-      
+      a.download = `plano-${plan.patient.name.replace(/\s+/g, '-')}.pdf`
       document.body.appendChild(a)
       a.click()
-      
       window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
       
-      console.log('✅ Download concluído com sucesso!')
-      
+      // Recarregar dados do plano para atualizar informações do PDF
+      await loadPlan(plan._id)
     } catch (error) {
-      console.error('❌ Erro no download:', error)
-      
-      // Mostrar erro mais específico para o usuário
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido ao gerar PDF'
-      
-      // Você pode adicionar aqui um toast ou modal de erro
-      alert(`Erro ao gerar PDF: ${errorMessage}`)
-      
+      console.error('Erro ao baixar PDF:', error)
+      alert('Erro ao gerar PDF. Tente novamente.')
     } finally {
       setDownloading(false)
+    }
+  }
+
+  const handleDownloadPage = async () => {
+    if (!plan) return
+    
+    setDownloadingPage(true)
+    try {
+      const response = await fetch(`/api/delivery/plans/${plan._id}/pdf-page`)
+      
+      if (!response.ok) {
+        throw new Error('Erro ao gerar PDF da página')
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.style.display = 'none'
+      a.href = url
+      a.download = `plano-pagina-${plan.patient.name.replace(/\s+/g, '-')}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      // Recarregar dados do plano para atualizar informações do PDF
+      await loadPlan(plan._id)
+    } catch (error) {
+      console.error('Erro ao baixar PDF da página:', error)
+      alert('Erro ao gerar PDF da página. Tente novamente.')
+    } finally {
+      setDownloadingPage(false)
     }
   }
 
@@ -376,23 +395,14 @@ export default function DeliveryPlanPage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    return new Date(dateString).toLocaleString('pt-BR')
   }
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Carregando plano...</p>
-          </div>
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       </div>
     )
@@ -400,14 +410,12 @@ export default function DeliveryPlanPage() {
 
   if (!plan) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-6 max-w-6xl">
         <div className="text-center">
-          <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Plano não encontrado</h1>
-          <p className="text-gray-600 mb-6">O plano solicitado não existe ou foi removido.</p>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Plano não encontrado</h1>
           <Button onClick={() => router.push('/delivery')} variant="outline">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Voltar para Entrega
+            Voltar
           </Button>
         </div>
       </div>
@@ -418,31 +426,168 @@ export default function DeliveryPlanPage() {
 
   return (
     <>
-      {/* Estilos específicos para impressão */}
+      {/* CSS específico para modo de impressão */}
       {isPrintMode && (
         <style jsx global>{`
           @media print {
-            body { margin: 0; padding: 0; }
-            .container { max-width: none !important; margin: 0 !important; padding: 20px !important; }
-            .grid { grid-template-columns: 1fr !important; }
-            .break-inside-avoid { break-inside: avoid; }
-            .break-before { break-before: page; }
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: white !important;
+              font-size: 12px !important;
+              line-height: 1.5 !important;
+              color: black !important;
+            }
+            
+            * {
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              box-sizing: border-box !important;
+            }
+            
+            .container {
+              max-width: none !important;
+              padding: 10px !important;
+              margin: 0 !important;
+            }
+            
+            .card {
+              box-shadow: none !important;
+              border: 1px solid #e5e7eb !important;
+              margin-bottom: 15px !important;
+              background: white !important;
+            }
+            
+            /* Permitir quebra natural de página */
+            .analysis-section {
+              page-break-inside: auto !important;
+              break-inside: auto !important;
+              margin-bottom: 20px !important;
+              background: white !important;
+            }
+            
+            /* Remover quebra forçada entre análises */
+            .analysis-section:not(:last-child) {
+              page-break-after: auto !important;
+              break-after: auto !important;
+            }
+            
+            /* Permitir quebra dentro do conteúdo markdown */
+            .markdown-content {
+              page-break-inside: auto !important;
+              break-inside: auto !important;
+              orphans: 2 !important;
+              widows: 2 !important;
+            }
+            
+            /* Evitar quebra apenas em títulos */
+            .markdown-content h1,
+            .markdown-content h2,
+            .markdown-content h3,
+            .markdown-content h4 {
+              page-break-after: avoid !important;
+              break-after: avoid !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              margin-top: 15px !important;
+              margin-bottom: 10px !important;
+              color: black !important;
+            }
+            
+            /* Garantir que parágrafos fluam naturalmente */
+            .markdown-content p,
+            .markdown-content div {
+              page-break-inside: auto !important;
+              break-inside: auto !important;
+              margin-bottom: 8px !important;
+              color: black !important;
+            }
+            
+            /* Listas devem fluir naturalmente */
+            .markdown-content ul,
+            .markdown-content ol,
+            .markdown-content li {
+              page-break-inside: auto !important;
+              break-inside: auto !important;
+              color: black !important;
+            }
+            
+            /* Garantir visibilidade de todos os elementos */
+            .prose {
+              max-width: none !important;
+              color: black !important;
+            }
+            
+            /* Forçar renderização de conteúdo dinâmico */
+            [data-pdf-ready] {
+              display: block !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+            }
+            
+            /* Garantir que todo texto seja visível */
+            span, p, div, h1, h2, h3, h4, h5, h6 {
+              color: black !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+            }
+            
+            /* Remover transformações que podem afetar o layout */
+            * {
+              transform: none !important;
+            }
+            
+            /* Garantir que elementos flexbox funcionem */
+            .flex {
+              display: flex !important;
+            }
+            
+            .grid {
+              display: grid !important;
+            }
+            
+            /* Otimizar espaçamento */
+            .space-y-8 > * + * {
+              margin-top: 20px !important;
+            }
+            
+            .space-y-4 > * + * {
+              margin-top: 10px !important;
+            }
+            
+            /* Garantir que bordas sejam visíveis */
+            .border {
+              border: 1px solid #e5e7eb !important;
+            }
+            
+            .border-gray-200 {
+              border-color: #e5e7eb !important;
+            }
+            
+            /* Backgrounds para melhor legibilidade */
+            .bg-gradient-to-r {
+              background: #f8fafc !important;
+            }
+            
+            .bg-blue-50 {
+              background: #eff6ff !important;
+            }
+            
+            .bg-white {
+              background: white !important;
+            }
           }
           
           .print-layout {
             background: white;
             min-height: 100vh;
             font-family: 'Times New Roman', serif;
+            color: black;
           }
           
           .print-layout h1, .print-layout h2, .print-layout h3 {
             color: #1f2937 !important;
-          }
-          
-          .print-layout .card {
-            border: 1px solid #e5e7eb;
-            box-shadow: none;
-            margin-bottom: 20px;
           }
         `}</style>
       )}
@@ -473,14 +618,28 @@ export default function DeliveryPlanPage() {
             <Button 
               onClick={handleDownload}
               disabled={downloading}
-              className="bg-blue-600 hover:bg-blue-700"
+              variant="outline"
+              size="sm"
             >
               {downloading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
               ) : (
                 <Download className="h-4 w-4 mr-2" />
               )}
-              Download PDF
+              PDF Dados
+            </Button>
+            <Button 
+              onClick={handleDownloadPage}
+              disabled={downloadingPage}
+              className="bg-blue-600 hover:bg-blue-700"
+              size="sm"
+            >
+              {downloadingPage ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+              ) : (
+                <FileText className="h-4 w-4 mr-2" />
+              )}
+              PDF Página
             </Button>
           </div>
         </div>
@@ -501,7 +660,7 @@ export default function DeliveryPlanPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         {/* Informações da Paciente */}
-        <Card>
+        <Card className="card">
           <CardHeader>
             <CardTitle className="flex items-center">
               <User className="h-5 w-5 mr-2" />
@@ -520,7 +679,7 @@ export default function DeliveryPlanPage() {
         </Card>
 
         {/* Informações do Profissional */}
-        <Card>
+        <Card className="card">
           <CardHeader>
             <CardTitle className="flex items-center">
               <User className="h-5 w-5 mr-2" />
@@ -536,7 +695,7 @@ export default function DeliveryPlanPage() {
         </Card>
 
         {/* Informações do Arquivo */}
-        <Card>
+        <Card className="card">
           <CardHeader>
             <CardTitle className="flex items-center">
               <FileText className="h-5 w-5 mr-2" />
@@ -555,7 +714,7 @@ export default function DeliveryPlanPage() {
       </div>
 
       {/* Prévia das Análises - Exatamente como foram criadas */}
-      <Card className="mb-6">
+      <Card className="mb-6 card">
         <CardHeader>
           <CardTitle className="flex items-center">
             <Eye className="h-5 w-5 mr-2" />
@@ -568,7 +727,7 @@ export default function DeliveryPlanPage() {
         <CardContent>
           <div className="space-y-8">
             {plan.analyses.map((analysis, index) => (
-              <div key={analysis._id} className="border border-gray-200 rounded-lg overflow-hidden">
+              <div key={analysis._id} className="border border-gray-200 rounded-lg overflow-hidden analysis-section">
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -603,7 +762,7 @@ export default function DeliveryPlanPage() {
                         }}
                         style={{
                           lineHeight: '1.6',
-                          fontSize: '14px'
+                          fontSize: isPrintMode ? '12px' : '14px'
                         }}
                       />
                     )
@@ -623,7 +782,7 @@ export default function DeliveryPlanPage() {
       </Card>
 
       {/* Timeline */}
-      <Card>
+      <Card className="card">
         <CardHeader>
           <CardTitle className="flex items-center">
             <Clock className="h-5 w-5 mr-2" />

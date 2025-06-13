@@ -95,17 +95,53 @@ export default function DeliveryPage() {
     event.stopPropagation() // Evitar navegação quando clicar no botão
     
     try {
-      // Usar a URL direta do MinIO
+      // Verificar se existe PDF salvo no MinIO
+      if (plan.pdfFile?.url) {
+        console.log('📄 Usando PDF existente do MinIO')
+        
+        // Usar a URL direta do MinIO
+        const link = document.createElement('a')
+        link.href = plan.pdfFile.url
+        link.download = `${plan.title.replace(/\s+/g, '-')}.pdf`
+        link.target = '_blank' // Abrir em nova aba para evitar problemas de CORS
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        console.log('✅ Download do PDF existente iniciado')
+        return
+      }
+      
+      // Se não existe PDF, gerar um novo
+      console.log('🎯 PDF não existe, gerando novo...')
+      
+      const response = await fetch(`/api/delivery/plans/${plan._id}/pdf`, {
+        method: 'GET',
+      })
+      
+      if (!response.ok) {
+        throw new Error('Erro ao gerar PDF')
+      }
+      
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.href = plan.pdfFile.url
+      link.href = url
       link.download = `${plan.title.replace(/\s+/g, '-')}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
       
-      console.log('Download iniciado com sucesso')
+      console.log('✅ Download do PDF gerado iniciado')
+      
+      // Recarregar planos para atualizar com o novo PDF
+      setTimeout(() => {
+        loadPlans()
+      }, 1000)
+      
     } catch (error) {
-      console.error('Erro no download:', error)
+      console.error('❌ Erro no download:', error)
       alert('Erro ao fazer download do PDF')
     }
   }

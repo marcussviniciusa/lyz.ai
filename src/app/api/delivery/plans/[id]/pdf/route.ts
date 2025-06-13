@@ -6,6 +6,7 @@ import DeliveryPlan from '@/models/DeliveryPlan'
 import User from '@/models/User'
 import mongoose from 'mongoose'
 import jsPDF from 'jspdf'
+import { MinIOService } from '@/lib/minio'
 
 // Função para renderizar markdown simples para texto
 function markdownToText(text: string): string {
@@ -109,7 +110,34 @@ export async function GET(
       return Response.json({ error: 'Plano não encontrado' }, { status: 404 })
     }
 
-    console.log('📄 Dados do plano carregados, gerando PDF...')
+    // Verificar se já existe PDF gerado e ainda é válido
+    if (plan.pdfFile?.key && plan.pdfFile?.url) {
+      try {
+        // Verificar se o arquivo ainda existe no MinIO
+        const fileExists = await MinIOService.fileExists(plan.pdfFile.key)
+        if (fileExists) {
+          console.log('📄 PDF já existe no MinIO, retornando URL existente')
+          
+          // Gerar nova URL assinada (caso a anterior tenha expirado)
+          const newUrl = await MinIOService.getFileUrl(plan.pdfFile.key)
+          
+          // Atualizar URL no banco se necessário
+          if (newUrl !== plan.pdfFile.url) {
+            await DeliveryPlan.findByIdAndUpdate(planId, {
+              'pdfFile.url': newUrl,
+              'pdfFile.lastAccessed': new Date()
+            })
+          }
+          
+          // Retornar redirect para o arquivo
+          return Response.redirect(newUrl)
+        }
+      } catch (error) {
+        console.log('⚠️ Erro ao verificar arquivo existente, gerando novo:', error)
+      }
+    }
+
+    console.log('📄 Dados do plano carregados, gerando novo PDF...')
 
     // Criar PDF
     const pdf = new jsPDF('p', 'mm', 'a4')
@@ -227,14 +255,56 @@ export async function GET(
     
     console.log('✅ PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes')
 
-    // Retornar o PDF
-    return new Response(pdfBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="plano-integrado-${plan.patient.name.replace(/\s+/g, '-')}.pdf"`,
-        'Content-Length': pdfBuffer.length.toString()
-      }
-    })
+    // Salvar PDF no MinIO
+    try {
+      const fileName = `plano-integrado-${plan.patient.name.replace(/\s+/g, '-')}-${Date.now()}.pdf`
+      
+      console.log('💾 Salvando PDF no MinIO...')
+      const uploadResult = await MinIOService.uploadFile(
+        pdfBuffer,
+        fileName,
+        {
+          folder: 'delivery-plans',
+          contentType: 'application/pdf'
+        }
+      )
+
+      console.log('✅ PDF salvo no MinIO:', uploadResult.key)
+
+      // Atualizar plano com informações do arquivo
+      await DeliveryPlan.findByIdAndUpdate(planId, {
+        pdfFile: {
+          key: uploadResult.key,
+          url: uploadResult.url,
+          size: uploadResult.size,
+          generatedAt: now,
+          lastAccessed: now
+        }
+      })
+
+      console.log('✅ Plano atualizado com informações do PDF')
+
+      // Retornar o PDF diretamente para download
+      return new Response(pdfBuffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${fileName}"`,
+          'Content-Length': pdfBuffer.length.toString()
+        }
+      })
+
+    } catch (minioError) {
+      console.error('❌ Erro ao salvar no MinIO:', minioError)
+      
+      // Se falhar no MinIO, ainda retornar o PDF gerado
+      return new Response(pdfBuffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="plano-integrado-${plan.patient.name.replace(/\s+/g, '-')}.pdf"`,
+          'Content-Length': pdfBuffer.length.toString()
+        }
+      })
+    }
     
   } catch (error) {
     console.error('❌ Erro ao gerar PDF:', error)
