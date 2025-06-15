@@ -132,7 +132,6 @@ const PatientSchema = new Schema<IPatient>({
     symptom: {
       type: String,
       required: true,
-      required: true,
       trim: true
     },
     priority: {

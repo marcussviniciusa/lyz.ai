@@ -9,6 +9,7 @@ declare module 'next-auth' {
       image?: string | null
       role?: string
       company?: string
+      companyName?: string
     }
   }
 
@@ -19,6 +20,7 @@ declare module 'next-auth' {
     image?: string | null
     role?: string
     company?: string
+    companyName?: string
   }
 }
 
@@ -26,5 +28,6 @@ declare module 'next-auth/jwt' {
   interface JWT {
     role?: string
     company?: string
+    companyName?: string
   }
 } 

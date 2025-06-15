@@ -11,28 +11,20 @@ interface GlobalMongoose {
   promise: Promise<typeof mongoose> | null
 }
 
-// Use a global variable to preserve the MongoDB connection across hot reloads in development
-declare global {
-  let mongoose: GlobalMongoose | undefined
-}
-
-let cached = global.mongoose
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null }
-}
+// Cache simples sem usar global
+let cached: GlobalMongoose = { conn: null, promise: null }
 
 async function dbConnect(): Promise<typeof mongoose> {
-  if (cached!.conn) {
-    return cached!.conn
+  if (cached.conn) {
+    return cached.conn
   }
 
-  if (!cached!.promise) {
+  if (!cached.promise) {
     const opts = {
       bufferCommands: false,
     }
 
-    cached!.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
       console.log('MongoDB conectado com sucesso')
       return mongoose
     }).catch((error) => {
@@ -42,13 +34,13 @@ async function dbConnect(): Promise<typeof mongoose> {
   }
 
   try {
-    cached!.conn = await cached!.promise
+    cached.conn = await cached.promise
   } catch (e) {
-    cached!.promise = null
+    cached.promise = null
     throw e
   }
 
-  return cached!.conn
+  return cached.conn
 }
 
 export default dbConnect

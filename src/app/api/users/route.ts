@@ -9,16 +9,23 @@ export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session || !['admin', 'superadmin'].includes(session.user.role)) {
+    if (!session || !session.user?.role || !['admin', 'superadmin'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     await dbConnect()
 
-    // Buscar usuários da mesma empresa
-    const users = await User.find({ 
-      company: session.user.companyId 
-    }).select('-password -__v').sort({ createdAt: -1 })
+    let users
+    
+    // Superadmin vê todos os usuários, admin vê apenas da sua empresa
+    if (session.user.role === 'superadmin') {
+      users = await User.find({}).select('-password -__v').sort({ createdAt: -1 })
+    } else {
+      // Admin - filtrar apenas usuários da mesma empresa
+      users = await User.find({ 
+        company: session.user.company 
+      }).select('-password -__v').sort({ createdAt: -1 })
+    }
 
     return NextResponse.json({ users })
 
@@ -35,7 +42,7 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     
-    if (!session || !['admin', 'superadmin'].includes(session.user.role)) {
+    if (!session || !session.user?.role || !['admin', 'superadmin'].includes(session.user.role)) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
@@ -76,7 +83,7 @@ export async function POST(req: NextRequest) {
       email,
       password: hashedPassword,
       role,
-      company: session.user.companyId,
+      company: session.user.company,
       active: true,
       createdBy: session.user.id
     })

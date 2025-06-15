@@ -452,13 +452,13 @@ export async function generateIntegratedPlanPDF(
     if (typeof content !== 'string') {
       if (content && typeof content === 'object') {
         // Se for um objeto, tentar extrair propriedades relevantes ou converter para JSON
-        content = content.fullAnalysis || 
-                 content.analysis || 
-                 content.interpretation ||
-                 content.timeline ||
-                 content.systemicAssessment ||
-                 content.energeticDiagnosis ||
-                 content.executiveSummary ||
+        content = (content as any).fullAnalysis || 
+                 (content as any).analysis || 
+                 (content as any).interpretation ||
+                 (content as any).timeline ||
+                 (content as any).systemicAssessment ||
+                 (content as any).energeticDiagnosis ||
+                 (content as any).executiveSummary ||
                  JSON.stringify(content, null, 2)
       } else {
         content = String(content || '')

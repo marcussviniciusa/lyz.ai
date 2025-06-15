@@ -4,7 +4,7 @@ export interface ICompany extends Document {
   _id: mongoose.Types.ObjectId
   name: string
   cnpj?: string
-  address: {
+  address?: {
     street: string
     number: string
     complement?: string
@@ -16,12 +16,20 @@ export interface ICompany extends Document {
   phone?: string
   email?: string
   website?: string
-  isActive: boolean
-  subscription: {
-    plan: 'basic' | 'premium' | 'enterprise'
-    status: 'active' | 'inactive' | 'suspended'
-    expiresAt: Date
-    features: string[]
+  status: 'pending' | 'approved' | 'rejected' | 'suspended'
+  approvedBy?: mongoose.Types.ObjectId
+  approvedAt?: Date
+  rejectionReason?: string
+  metadata?: {
+    contactPerson?: {
+      name: string
+      email: string
+      phone: string
+      position: string
+    }
+    description?: string
+    registrationDate?: Date
+    registrationSource?: string
   }
   settings: {
     aiProviders: {
@@ -53,7 +61,6 @@ export interface ICompany extends Document {
       month: Date
       analysesCount: number
       tokensUsed: number
-      cost: number
     }[]
   }
   createdAt: Date
@@ -70,17 +77,18 @@ const CompanySchema = new Schema<ICompany>({
   cnpj: {
     type: String,
     trim: true,
+    unique: true,
     sparse: true,
     match: [/^\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}$|^\d{14}$/, 'CNPJ inválido']
   },
   address: {
-    street: { type: String, required: true, trim: true },
-    number: { type: String, required: true, trim: true },
+    street: { type: String, trim: true },
+    number: { type: String, trim: true },
     complement: { type: String, trim: true },
-    neighborhood: { type: String, required: true, trim: true },
-    city: { type: String, required: true, trim: true },
-    state: { type: String, required: true, trim: true, maxlength: 2 },
-    zipCode: { type: String, required: true, trim: true, match: /^\d{5}-?\d{3}$/ }
+    neighborhood: { type: String, trim: true },
+    city: { type: String, trim: true },
+    state: { type: String, trim: true, maxlength: 2 },
+    zipCode: { type: String, trim: true, match: /^\d{5}-?\d{3}$/ }
   },
   phone: {
     type: String,
@@ -97,28 +105,32 @@ const CompanySchema = new Schema<ICompany>({
     type: String,
     trim: true
   },
-  isActive: {
-    type: Boolean,
-    default: true
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'suspended'],
+    default: 'pending'
   },
-  subscription: {
-    plan: {
-      type: String,
-      enum: ['basic', 'premium', 'enterprise'],
-      default: 'basic'
+  approvedBy: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  approvedAt: {
+    type: Date
+  },
+  rejectionReason: {
+    type: String,
+    trim: true
+  },
+  metadata: {
+    contactPerson: {
+      name: { type: String, trim: true },
+      email: { type: String, lowercase: true, trim: true },
+      phone: { type: String, trim: true },
+      position: { type: String, trim: true }
     },
-    status: {
-      type: String,
-      enum: ['active', 'inactive', 'suspended'],
-      default: 'active'
-    },
-    expiresAt: {
-      type: Date,
-      required: true
-    },
-    features: [{
-      type: String
-    }]
+    description: { type: String, trim: true },
+    registrationDate: { type: Date },
+    registrationSource: { type: String, trim: true }
   },
   settings: {
     aiProviders: {
@@ -141,7 +153,7 @@ const CompanySchema = new Schema<ICompany>({
     },
     maxUsersAllowed: {
       type: Number,
-      default: 5
+      default: 10
     },
     ragSettings: {
       chunkSize: {
@@ -170,8 +182,7 @@ const CompanySchema = new Schema<ICompany>({
     monthlyUsage: [{
       month: { type: Date, required: true },
       analysesCount: { type: Number, default: 0 },
-      tokensUsed: { type: Number, default: 0 },
-      cost: { type: Number, default: 0 }
+      tokensUsed: { type: Number, default: 0 }
     }]
   }
 }, {
@@ -179,8 +190,8 @@ const CompanySchema = new Schema<ICompany>({
 })
 
 // Índices
-CompanySchema.index({ cnpj: 1 })
-CompanySchema.index({ isActive: 1 })
-CompanySchema.index({ 'subscription.status': 1 })
+// cnpj já tem índice único definido no schema
+CompanySchema.index({ status: 1 })
+CompanySchema.index({ approvedBy: 1 })
 
-export default mongoose.models.Company || mongoose.model<ICompany>('Company', CompanySchema) 
+export default mongoose.models.Company || mongoose.model<ICompany>('Company', CompanySchema)

@@ -896,16 +896,6 @@ export default function ChronologyAnalysisPage() {
                       <p className="text-blue-800 text-sm">{result.analysis.temporalPrognosis.longTerm}</p>
                     </div>
                   </div>
-                  {result.analysis.temporalPrognosis.keyMilestones && result.analysis.temporalPrognosis.keyMilestones.length > 0 && (
-                    <div className="mt-4 bg-gray-50 p-4 rounded-lg">
-                      <strong className="text-gray-900">Marcos importantes:</strong>
-                      <ul className="list-disc list-inside text-gray-800 mt-2">
-                        {result.analysis.temporalPrognosis.keyMilestones.map((milestone: string, i: number) => (
-                          <li key={i}>{milestone}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
                 </div>
               )}
 

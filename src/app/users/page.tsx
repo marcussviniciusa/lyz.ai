@@ -11,6 +11,7 @@ interface User {
   email: string
   role: 'professional' | 'admin' | 'superadmin'
   active: boolean
+  company?: string
   createdAt: string
   lastLogin?: string
 }
@@ -21,6 +22,11 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [deleteWithCompany, setDeleteWithCompany] = useState(false)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -63,9 +69,7 @@ export default function UsersPage() {
     try {
       const response = await fetch('/api/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
 
@@ -73,28 +77,122 @@ export default function UsersPage() {
         fetchUsers()
         setShowCreateModal(false)
         setFormData({ name: '', email: '', role: 'professional', password: '' })
+        alert('Usuário criado com sucesso!')
+      } else {
+        const error = await response.json()
+        alert(`Erro: ${error.error}`)
       }
     } catch (error) {
       console.error('Erro ao criar usuário:', error)
+      alert('Erro ao criar usuário')
     }
   }
 
-  const toggleUserStatus = async (userId: string, active: boolean) => {
+  const editUser = async () => {
+    if (!selectedUser) return
+
     try {
-      const response = await fetch(`/api/users/${userId}/toggle`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ active: !active }),
+      const response = await fetch(`/api/users/${selectedUser._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       })
 
       if (response.ok) {
         fetchUsers()
+        setShowEditModal(false)
+        setSelectedUser(null)
+        setFormData({ name: '', email: '', role: 'professional', password: '' })
+        alert('Usuário atualizado com sucesso!')
+      } else {
+        const error = await response.json()
+        alert(`Erro: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Erro ao editar usuário:', error)
+      alert('Erro ao editar usuário')
+    }
+  }
+
+  const toggleUserStatus = async (userId: string, currentActive: boolean) => {
+    try {
+      const response = await fetch(`/api/users/${userId}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !currentActive }),
+      })
+
+      if (response.ok) {
+        fetchUsers()
+        const action = !currentActive ? 'ativado' : 'desativado'
+        alert(`Usuário ${action} com sucesso!`)
+      } else {
+        const error = await response.json()
+        alert(`Erro: ${error.error}`)
       }
     } catch (error) {
       console.error('Erro ao alterar status do usuário:', error)
+      alert('Erro ao alterar status do usuário')
     }
+  }
+
+  const deleteUser = async () => {
+    if (!selectedUser) return
+
+    console.log('Iniciando exclusão do usuário:', selectedUser.name)
+    console.log('Excluir empresa também:', deleteWithCompany)
+
+    try {
+      const response = await fetch(`/api/users/${selectedUser._id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deleteCompany: deleteWithCompany }),
+      })
+
+      console.log('Resposta da API:', response.status)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Resultado da exclusão:', result)
+        
+        fetchUsers()
+        setShowDeleteModal(false)
+        setSelectedUser(null)
+        setDeleteWithCompany(false)
+        setDeleteConfirmation('')
+        
+        let message = 'Usuário excluído com sucesso!'
+        if (result.deletedCompany) {
+          message += ` A empresa "${result.deletedCompany.name}" também foi excluída.`
+        }
+        alert(message)
+      } else {
+        const error = await response.json()
+        console.log('Erro da API:', error)
+        alert(`Erro: ${error.error}`)
+      }
+    } catch (error) {
+      console.error('Erro ao excluir usuário:', error)
+      alert('Erro ao excluir usuário')
+    }
+  }
+
+  const openEditModal = (user: User) => {
+    setSelectedUser(user)
+    setFormData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      password: ''
+    })
+    setShowEditModal(true)
+  }
+
+  const openDeleteModal = (user: User) => {
+    setSelectedUser(user)
+    setDeleteConfirmation('')
+    setDeleteWithCompany(false)
+    setShowDeleteModal(true)
   }
 
   const getRoleBadge = (role: string) => {
@@ -120,6 +218,9 @@ export default function UsersPage() {
       </span>
     )
   }
+
+  // Verificar se pode excluir
+  const canDelete = deleteConfirmation === 'EXCLUIR'
 
   if (status === 'loading' || loading) {
     return (
@@ -213,20 +314,31 @@ export default function UsersPage() {
                             : 'Nunca'
                           }
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                           <button
                             onClick={() => toggleUserStatus(user._id, user.active)}
-                            className={`mr-4 ${
+                            className={`px-3 py-1 rounded text-xs font-medium ${
                               user.active 
-                                ? 'text-red-600 hover:text-red-900' 
-                                : 'text-green-600 hover:text-green-900'
+                                ? 'bg-red-100 text-red-800 hover:bg-red-200' 
+                                : 'bg-green-100 text-green-800 hover:bg-green-200'
                             }`}
                           >
                             {user.active ? 'Desativar' : 'Ativar'}
                           </button>
-                          <button className="text-primary-600 hover:text-primary-900">
+                          <button 
+                            onClick={() => openEditModal(user)}
+                            className="px-3 py-1 bg-blue-100 text-blue-800 hover:bg-blue-200 rounded text-xs font-medium"
+                          >
                             Editar
                           </button>
+                          {session?.user.role === 'superadmin' && (
+                            <button 
+                              onClick={() => openDeleteModal(user)}
+                              className="px-3 py-1 bg-red-100 text-red-800 hover:bg-red-200 rounded text-xs font-medium"
+                            >
+                              Excluir
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -334,6 +446,183 @@ export default function UsersPage() {
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                   >
                     Criar Usuário
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Edição */}
+        {showEditModal && selectedUser && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Editar Usuário
+                  </h3>
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nome Completo
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Função
+                    </label>
+                    <select
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    >
+                      <option value="professional">Profissional</option>
+                      <option value="admin">Administrador</option>
+                      {session?.user.role === 'superadmin' && (
+                        <option value="superadmin">Super Admin</option>
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nova Senha (deixe em branco para manter atual)
+                    </label>
+                    <input
+                      type="password"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      placeholder="Digite nova senha ou deixe em branco"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={editUser}
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
+                  >
+                    Atualizar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Exclusão */}
+        {showDeleteModal && selectedUser && session?.user.role === 'superadmin' && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-1/2 lg:w-1/3 shadow-lg rounded-md bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-red-600">
+                    Excluir Usuário Permanentemente
+                  </h3>
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-red-50 p-4 rounded-md">
+                    <p className="text-sm text-red-800">
+                      <strong>ATENÇÃO:</strong> Esta ação é irreversível! Você está prestes a excluir permanentemente:
+                    </p>
+                    <ul className="mt-2 text-sm text-red-700">
+                      <li>• <strong>Usuário:</strong> {selectedUser.name} ({selectedUser.email})</li>
+                      <li>• <strong>Role:</strong> {selectedUser.role}</li>
+                    </ul>
+                  </div>
+
+                  {selectedUser.company && (
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="deleteCompany"
+                        checked={deleteWithCompany}
+                        onChange={(e) => setDeleteWithCompany(e.target.checked)}
+                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="deleteCompany" className="text-sm text-gray-700">
+                        Excluir empresa também (apenas se não houver outros usuários)
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="bg-yellow-50 p-4 rounded-md">
+                    <p className="text-sm text-yellow-800">
+                      Para confirmar, digite <strong>EXCLUIR</strong> abaixo:
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Digite EXCLUIR para confirmar"
+                      value={deleteConfirmation}
+                      onChange={(e) => setDeleteConfirmation(e.target.value)}
+                      className="mt-2 w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-red-500 focus:border-red-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={deleteUser}
+                    disabled={!canDelete}
+                    className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+                      canDelete 
+                        ? 'bg-red-600 hover:bg-red-700 cursor-pointer' 
+                        : 'bg-gray-400 cursor-not-allowed'
+                    }`}
+                  >
+                    Excluir Permanentemente
                   </button>
                 </div>
               </div>

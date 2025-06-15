@@ -28,7 +28,7 @@ export async function GET(
     const query: any = { type }
     
     // Filtrar por empresa (exceto superadmin)
-    if (session.user.role !== 'superadmin') {
+    if (session.user?.role !== 'superadmin') {
       query.company = user.company
     }
 
@@ -77,7 +77,7 @@ export async function PUT(
     }
 
     // Apenas admin e superadmin podem editar templates
-    if (!['admin', 'superadmin'].includes(session.user.role)) {
+    if (!session.user?.role || !['admin', 'superadmin'].includes(session.user.role)) {
       return Response.json({ error: 'Permissão negada' }, { status: 403 })
     }
 
@@ -101,7 +101,7 @@ export async function PUT(
     const query: any = { type }
     
     // Filtrar por empresa (exceto superadmin)
-    if (session.user.role !== 'superadmin') {
+    if (session.user?.role !== 'superadmin') {
       query.company = user.company
     }
 
@@ -168,7 +168,7 @@ export async function POST(
     })
     
     if (existingDefault) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Template padrão já existe para este tipo' },
         { status: 400 }
       )
@@ -179,7 +179,7 @@ export async function POST(
     const templateConfig = defaultTemplates[type as keyof typeof defaultTemplates]
     
     if (!templateConfig) {
-      return NextResponse.json(
+      return Response.json(
         { error: 'Configuração de template não encontrada' },
         { status: 400 }
       )
@@ -192,7 +192,7 @@ export async function POST(
       isDefault: true
     })
     
-    return NextResponse.json({
+    return Response.json({
       success: true,
       template,
       message: 'Template padrão criado com sucesso'
@@ -200,7 +200,7 @@ export async function POST(
 
   } catch (error: any) {
     console.error('Erro ao criar template padrão:', error)
-    return NextResponse.json(
+    return Response.json(
       { error: 'Erro interno do servidor' },
       { status: 500 }
     )

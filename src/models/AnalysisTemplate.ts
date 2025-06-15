@@ -234,7 +234,7 @@ AnalysisTemplateSchema.methods.buildPrompt = function(inputData: any, ragContext
   let prompt = this.promptTemplate
   
   // Substituir variáveis padrão
-  prompt = prompt.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+  prompt = prompt.replace(/\{\{(\w+)\}\}/g, (match: string, key: string) => {
     return inputData[key] || match
   })
   

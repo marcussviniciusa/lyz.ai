@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -137,7 +137,7 @@ const processMarkdown = (text: string) => {
   }).filter(Boolean).join('');
 };
 
-export default function TCMAnalysisPage() {
+function TCMAnalysisContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
@@ -1035,5 +1035,13 @@ export default function TCMAnalysisPage() {
         )}
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function TCMAnalysisPage() {
+  return (
+    <Suspense fallback={<div>Carregando...</div>}>
+      <TCMAnalysisContent />
+    </Suspense>
   );
 } 

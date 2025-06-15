@@ -14,14 +14,15 @@ export async function POST(
       return Response.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
-    // Apenas superadmin pode ativar/desativar usuários
-    if (session.user.role !== 'superadmin') {
+    // Apenas admin ou superadmin podem ativar/desativar usuários
+    if (!['admin', 'superadmin'].includes(session.user.role || '')) {
       return Response.json({ error: 'Permissão negada' }, { status: 403 })
     }
 
     await dbConnect()
 
     const { id } = await params
+    const { active } = await request.json()
 
     const user = await User.findById(id)
     
@@ -32,18 +33,28 @@ export async function POST(
       )
     }
 
-    // Alternar status ativo
-    user.isActive = !user.isActive
+    // Admin só pode alterar usuários da mesma empresa
+    if (session.user.role === 'admin' && user.company?.toString() !== session.user.company) {
+      return Response.json({ error: 'Permissão negada para este usuário' }, { status: 403 })
+    }
+
+    // Impedir que usuário desative a si mesmo
+    if (user._id.toString() === session.user.id) {
+      return Response.json({ error: 'Você não pode desativar sua própria conta' }, { status: 400 })
+    }
+
+    // Alterar status ativo
+    user.active = active
     await user.save()
 
     return Response.json({
       success: true,
-      message: `Usuário ${user.isActive ? 'ativado' : 'desativado'} com sucesso`,
+      message: `Usuário ${user.active ? 'ativado' : 'desativado'} com sucesso`,
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        isActive: user.isActive
+        active: user.active
       }
     })
 

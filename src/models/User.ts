@@ -8,6 +8,7 @@ export interface IUser extends Document {
   role: 'superadmin' | 'admin' | 'professional'
   company?: mongoose.Types.ObjectId
   specialization?: string
+  curseduca_id?: string
   active: boolean
   lastLogin?: Date
   createdAt: Date
@@ -52,6 +53,12 @@ const UserSchema = new Schema<IUser>({
     trim: true,
     maxlength: [100, 'Especialização não pode ter mais de 100 caracteres']
   },
+  curseduca_id: {
+    type: String,
+    trim: true,
+    unique: true,
+    sparse: true // Permite null/undefined mas cria índice único para valores não nulos
+  },
   active: {
     type: Boolean,
     default: true
@@ -67,16 +74,7 @@ const UserSchema = new Schema<IUser>({
 UserSchema.index({ email: 1 }, { unique: true })
 UserSchema.index({ company: 1, role: 1 })
 UserSchema.index({ active: 1 })
-
-// Middleware para hash da senha antes de salvar
-UserSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next()
-  
-  const bcrypt = await import('bcryptjs')
-  const salt = await bcrypt.genSalt(12)
-  this.password = await bcrypt.hash(this.password, salt)
-  next()
-})
+// curseduca_id já tem índice único definido no schema
 
 // Método para verificar senha
 UserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {

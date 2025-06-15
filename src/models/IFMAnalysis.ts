@@ -561,7 +561,7 @@ IFMAnalysisSchema.methods.getMostDysfunctionalSystem = function() {
   let lowestScore = 100
   let mostDysfunctional = null
   
-  Object.entries(systems).forEach(([system, data]) => {
+  Object.entries(systems).forEach(([system, data]: [string, any]) => {
     if (data.score < lowestScore) {
       lowestScore = data.score
       mostDysfunctional = system

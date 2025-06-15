@@ -98,11 +98,14 @@ class CacheService {
   private cleanExpired(): void {
     const now = Date.now()
     
-    for (const [key, entry] of this.cache.entries()) {
+    const keysToDelete: string[] = []
+    this.cache.forEach((entry, key) => {
       if (now - entry.timestamp > entry.ttl) {
-        this.cache.delete(key)
+        keysToDelete.push(key)
       }
-    }
+    })
+    
+    keysToDelete.forEach(key => this.cache.delete(key))
   }
 
   /**
@@ -209,12 +212,14 @@ class CacheService {
   invalidateDocumentCache(companyId: string): void {
     const pattern = `rag:`
     
-    for (const key of this.cache.keys()) {
+    const keysToDelete: string[] = []
+    this.cache.forEach((_, key) => {
       if (key.startsWith(pattern)) {
-        // Verificar se é da empresa (mais complexo com hash, mas funcional)
-        this.cache.delete(key)
+        keysToDelete.push(key)
       }
-    }
+    })
+    
+    keysToDelete.forEach(key => this.cache.delete(key))
   }
 
   /**

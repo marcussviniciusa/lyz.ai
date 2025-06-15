@@ -1,10 +1,10 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface ITCMAnalysis extends Document {
-  _id: string;
-  patientId: string;
-  professionalId: string;
-  companyId: string;
+  _id: mongoose.Types.ObjectId;
+  patientId: mongoose.Types.ObjectId;
+  professionalId: mongoose.Types.ObjectId;
+  companyId: mongoose.Types.ObjectId;
   tcmData: {
     lingualObservation: {
       color: string;
@@ -66,7 +66,7 @@ export interface ITCMAnalysis extends Document {
   updatedAt: Date;
 }
 
-const TCMAnalysisSchema = new Schema<ITCMAnalysis>({
+const TCMAnalysisSchema = new Schema({
   patientId: {
     type: Schema.Types.ObjectId,
     ref: 'Patient',

@@ -6,7 +6,7 @@ import Patient from '@/models/Patient';
 import Analysis from '@/models/Analysis';
 import Company from '@/models/Company';
 import User from '@/models/User';
-import aiProvider from '@/lib/ai';
+import { AIService } from '@/lib/ai-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -67,228 +67,61 @@ export async function POST(request: NextRequest) {
       preferences: preferences || {}
     };
 
-    // Configurar prompts para o plano de tratamento
-    const systemPrompt = `Você é um especialista em medicina funcional, medicina tradicional chinesa e medicina integrativa, especializado em saúde da mulher e análise de ciclicidade. Sua tarefa é criar um plano de tratamento abrangente e personalizado integrando todas as análises realizadas.
-
-METODOLOGIA:
-1. Síntese diagnóstica integrativa combinando todas as análises
-2. Identificação de prioridades terapêuticas hierarquizadas
-3. Estruturação em fases de tratamento (estabilização, otimização, manutenção)
-4. Plano nutricional detalhado e personalizado
-5. Protocolo de suplementação baseado em evidências
-6. Recomendações de estilo de vida específicas
-7. Cronograma de acompanhamento e monitoramento
-8. Orientações para a paciente
-9. Critérios de sucesso e ajustes
-
-RESPONDA EM PORTUGUÊS e estruture sua resposta em JSON seguindo EXATAMENTE esta estrutura:
-
-{
-  "diagnosticSynthesis": {
-    "primaryDiagnosis": "Diagnóstico principal integrado",
-    "contributingFactors": ["fator1", "fator2"],
-    "rootCauses": ["causa raiz 1", "causa raiz 2"],
-    "systemsInvolved": ["sistema1", "sistema2"],
-    "prognosis": "Prognóstico baseado em todas as análises"
-  },
-  "therapeuticPriorities": [
-    {
-      "priority": 1,
-      "intervention": "Intervenção prioritária",
-      "rationale": "Justificativa baseada nas análises",
-      "timeline": "tempo estimado",
-      "successMetrics": ["métrica1", "métrica2"]
-    }
-  ],
-  "treatmentPhases": {
-    "stabilization": {
-      "duration": "duração da fase",
-      "objectives": ["objetivo1", "objetivo2"],
-      "interventions": ["intervenção1", "intervenção2"],
-      "monitoring": "frequência de acompanhamento"
-    },
-    "optimization": {
-      "duration": "duração da fase",
-      "objectives": ["objetivo1", "objetivo2"],
-      "interventions": ["intervenção1", "intervenção2"],
-      "monitoring": "frequência de acompanhamento"
-    },
-    "maintenance": {
-      "duration": "duração da fase",
-      "objectives": ["objetivo1", "objetivo2"],
-      "interventions": ["intervenção1", "intervenção2"],
-      "monitoring": "frequência de acompanhamento"
-    }
-  },
-  "nutritionalPlan": {
-    "dietaryPattern": "Padrão alimentar recomendado",
-    "macronutrients": {
-      "carbohydrates": "% e especificações",
-      "proteins": "% e especificações", 
-      "fats": "% e especificações"
-    },
-    "foodsToInclude": ["alimento1", "alimento2"],
-    "foodsToAvoid": ["alimento1", "alimento2"],
-    "mealTiming": "Horários e frequência das refeições",
-    "hydration": "Recomendações de hidratação",
-    "specialConsiderations": "Considerações especiais baseadas na ciclicidade"
-  },
-  "supplementProtocol": [
-    {
-      "supplement": "Nome do suplemento",
-      "dosage": "Dosagem",
-      "timing": "Quando tomar",
-      "duration": "Duração do uso",
-      "purpose": "Objetivo/indicação",
-      "monitoring": "O que monitorar"
-    }
-  ],
-  "lifestyleRecommendations": {
-    "exercise": {
-      "type": "Tipo de exercício",
-      "frequency": "Frequência",
-      "intensity": "Intensidade",
-      "cyclicConsiderations": "Adaptações ao ciclo menstrual"
-    },
-    "stressManagement": {
-      "techniques": ["técnica1", "técnica2"],
-      "frequency": "Frequência recomendada",
-      "resources": ["recurso1", "recurso2"]
-    },
-    "sleepHygiene": {
-      "recommendations": ["recomendação1", "recomendação2"],
-      "cyclicAdaptations": "Adaptações ao ciclo"
-    },
-    "environmentalFactors": ["fator1", "fator2"]
-  },
-  "followUpSchedule": {
-    "shortTerm": {
-      "timeframe": "1-4 semanas",
-      "objectives": ["objetivo1", "objetivo2"],
-      "assessments": ["avaliação1", "avaliação2"]
-    },
-    "mediumTerm": {
-      "timeframe": "1-3 meses", 
-      "objectives": ["objetivo1", "objetivo2"],
-      "assessments": ["avaliação1", "avaliação2"]
-    },
-    "longTerm": {
-      "timeframe": "3-6 meses",
-      "objectives": ["objetivo1", "objetivo2"],
-      "assessments": ["avaliação1", "avaliação2"]
-    }
-  },
-  "patientEducation": {
-    "keyPoints": ["ponto1", "ponto2"],
-    "resources": ["recurso1", "recurso2"],
-    "selfMonitoring": ["o que observar1", "o que observar2"],
-    "warningSignals": ["sinal de alerta1", "sinal de alerta2"]
-  },
-  "integrationSummary": "Resumo de como as diferentes análises foram integradas no plano"
-}`;
-
-    const userPrompt = `Baseado nas seguintes análises da paciente ${patient.name}, crie um plano de tratamento integrado e personalizado:
-
-DADOS DA PACIENTE:
-${JSON.stringify(analysisData.patient, null, 2)}
-
-ANÁLISE LABORATORIAL:
-${analysisData.labAnalysis ? JSON.stringify(analysisData.labAnalysis, null, 2) : 'Não realizada'}
-
-ANÁLISE DE MEDICINA TRADICIONAL CHINESA:
-${analysisData.tcmAnalysis ? JSON.stringify(analysisData.tcmAnalysis, null, 2) : 'Não realizada'}
-
-ANÁLISE DE CRONOLOGIA:
-${analysisData.chronologyAnalysis ? JSON.stringify(analysisData.chronologyAnalysis, null, 2) : 'Não realizada'}
-
-ANÁLISE DA MATRIZ IFM:
-${analysisData.ifmAnalysis ? JSON.stringify(analysisData.ifmAnalysis, null, 2) : 'Não realizada'}
-
-OBJETIVOS DO TRATAMENTO:
-${JSON.stringify(treatmentGoals, null, 2)}
-
-PREFERÊNCIAS DA PACIENTE:
-${JSON.stringify(preferences, null, 2)}
-
-Crie um plano de tratamento que:
-1. Integre todas as perspectivas diagnósticas
-2. Priorize intervenções baseadas na eficácia e segurança
-3. Considere a ciclicidade hormonal feminina
-4. Seja prático e exequível
-5. Inclua métricas claras de sucesso
-6. Respeite as preferências da paciente`;
+    // Inicializar AIService
+    const aiService = new AIService(company);
 
     // Chamar IA
     const startTime = Date.now();
-    const aiResponse = await openaiProvider.generateResponse(
-      systemPrompt,
-      userPrompt,
-      company.aiConfig?.model || 'gpt-4o-mini',
+    const aiResponse = await aiService.generateAnalysis(
+      'treatmentPlan',
       {
-        temperature: company.aiConfig?.creativity || 0.7,
-        maxTokens: company.aiConfig?.maxTokens || 4000
+        patientData: analysisData.patient,
+        previousAnalyses: [
+          analysisData.labAnalysis,
+          analysisData.tcmAnalysis,
+          analysisData.chronologyAnalysis,
+          analysisData.ifmAnalysis
+        ].filter(Boolean)
       }
     );
     const endTime = Date.now();
 
     let analysis;
     try {
-      analysis = JSON.parse(aiResponse.content);
+      analysis = JSON.parse(aiResponse);
     } catch (error: any) {
       console.error('Erro ao parsear resposta da IA:', error);
       return NextResponse.json({ error: 'Erro ao processar resposta da IA' }, { status: 500 });
     }
 
-    // Calcular custos
-    const totalTokens = aiResponse.promptTokens + aiResponse.completionTokens;
-    const cost = openaiProvider.calculateCost(
-      company.aiConfig?.model || 'gpt-4o-mini',
-      aiResponse.promptTokens,
-      aiResponse.completionTokens
-    );
-
     // Salvar resultado
-    const treatmentPlan = new TreatmentPlan({
+    const treatmentPlan = new Analysis({
       patientId,
       companyId: user.companyId,
       userId: user._id,
+      type: 'treatment-plan',
       analysis,
       aiMetadata: {
-        model: company.aiConfig?.model || 'gpt-4o-mini',
-        promptTokens: aiResponse.promptTokens,
-        completionTokens: aiResponse.completionTokens,
-        totalTokens,
-        cost,
+        model: 'gpt-4o-mini',
         processingTime: endTime - startTime
       },
-      status: 'pending_review',
-      treatmentGoals,
-      preferences
+      status: 'completed'
     });
 
     await treatmentPlan.save();
-
-    // Atualizar custos da empresa
-    if (company.usage) {
-      company.usage.totalCost += cost;
-      company.usage.totalTokens += totalTokens;
-      await company.save();
-    }
 
     return NextResponse.json({
       success: true,
       analysis,
       aiMetadata: {
-        model: company.aiConfig?.model || 'gpt-4o-mini',
-        totalTokens,
-        cost,
+        model: 'gpt-4o-mini',
         processingTime: endTime - startTime
       },
       createdAt: treatmentPlan.createdAt,
       id: treatmentPlan._id
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Erro na análise de plano de tratamento:', error);
     return NextResponse.json({ 
       error: 'Erro interno do servidor',

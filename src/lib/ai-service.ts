@@ -171,7 +171,7 @@ export class AIService {
         .replace(/\{\{contraceptiveUse\}\}/g, menstrualHistory.contraceptiveUse || 'Nenhum');
 
       // Sintomas principais
-      const symptomsText = patient.mainSymptoms?.map(s => `${s.symptom} (prioridade ${s.priority})`).join(', ') || 'Nenhum sintoma principal registrado';
+      const symptomsText = patient.mainSymptoms?.map((s: any) => `${s.symptom} (prioridade ${s.priority})`).join(', ') || 'Nenhum sintoma principal registrado';
       processedTemplate = processedTemplate.replace(/\{\{mainSymptoms\}\}/g, symptomsText);
 
       // Histórico médico
@@ -183,7 +183,7 @@ export class AIService {
         .replace(/\{\{previousTreatments\}\}/g, medicalHistory.previousTreatments?.join(', ') || 'Nenhum tratamento anterior registrado');
 
       // Medicamentos
-      const medicationsText = patient.medications?.map(m => `${m.name} - ${m.dosage} (${m.frequency}) - ${m.type}`).join('\n') || 'Nenhum medicamento ou suplemento atual';
+      const medicationsText = patient.medications?.map((m: any) => `${m.name} - ${m.dosage} (${m.frequency}) - ${m.type}`).join('\n') || 'Nenhum medicamento ou suplemento atual';
       processedTemplate = processedTemplate.replace(/\{\{medications\}\}/g, medicationsText);
 
       // Estilo de vida
