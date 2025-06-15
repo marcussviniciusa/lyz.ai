@@ -19,9 +19,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: 'Dashboard', href: '/dashboard', icon: 'dashboard', current: pathname === '/dashboard' },
     { name: 'Pacientes', href: '/patients', icon: 'users', current: pathname.startsWith('/patients') },
     { name: 'Análises IA', href: '/analyses', icon: 'chart', current: pathname.startsWith('/analyses') },
-    { name: 'Revisão', href: '/reviews', icon: 'review', current: pathname.startsWith('/reviews') },
+    // { name: 'Revisão', href: '/reviews', icon: 'review', current: pathname.startsWith('/reviews') }, // TEMPORARIAMENTE DESATIVADO
     { name: 'Entrega', href: '/delivery', icon: 'delivery', current: pathname.startsWith('/delivery') },
-    { name: 'Relatórios', href: '/reports', icon: 'report', current: pathname.startsWith('/reports') },
+    // { name: 'Relatórios', href: '/reports', icon: 'report', current: pathname.startsWith('/reports') }, // TEMPORARIAMENTE DESATIVADO
   ]
 
   // Adicionar RAG apenas para superadmin

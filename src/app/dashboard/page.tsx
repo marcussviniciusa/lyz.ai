@@ -161,7 +161,10 @@ export default function DashboardPage() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Análise Laboratorial */}
-              <div className="border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all cursor-pointer">
+              <div 
+                onClick={() => router.push('/analyses/laboratory')}
+                className="border border-gray-200 rounded-lg p-4 hover:border-primary-300 hover:shadow-md transition-all cursor-pointer"
+              >
                 <div className="flex items-center mb-3">
                   <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center mr-3">
                     <svg className="w-4 h-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,7 +182,10 @@ export default function DashboardPage() {
               </div>
 
               {/* MTC */}
-              <div className="border border-gray-200 rounded-lg p-4 hover:border-secondary-300 hover:shadow-md transition-all cursor-pointer">
+              <div 
+                onClick={() => router.push('/analyses/tcm')}
+                className="border border-gray-200 rounded-lg p-4 hover:border-secondary-300 hover:shadow-md transition-all cursor-pointer"
+              >
                 <div className="flex items-center mb-3">
                   <div className="w-8 h-8 bg-secondary-100 rounded-lg flex items-center justify-center mr-3">
                     <svg className="w-4 h-4 text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,7 +203,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Cronologia */}
-              <div className="border border-gray-200 rounded-lg p-4 hover:border-green-300 hover:shadow-md transition-all cursor-pointer">
+              <div 
+                onClick={() => router.push('/analyses/chronology')}
+                className="border border-gray-200 rounded-lg p-4 hover:border-green-300 hover:shadow-md transition-all cursor-pointer"
+              >
                 <div className="flex items-center mb-3">
                   <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center mr-3">
                     <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -215,7 +224,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Matriz IFM */}
-              <div className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer">
+              <div 
+                onClick={() => router.push('/analyses/ifm')}
+                className="border border-gray-200 rounded-lg p-4 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
+              >
                 <div className="flex items-center mb-3">
                   <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
                     <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,7 +245,10 @@ export default function DashboardPage() {
               </div>
 
               {/* Plano de Tratamento */}
-              <div className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer md:col-span-2">
+              <div 
+                onClick={() => router.push('/analyses/treatment-plan')}
+                className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer md:col-span-2"
+              >
                 <div className="flex items-center mb-3">
                   <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mr-3">
                     <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -338,25 +353,46 @@ export default function DashboardPage() {
               Ações Rápidas
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-all">
+              <button 
+                onClick={() => router.push('/patients/new')}
+                className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-primary-300 hover:bg-primary-50 transition-all"
+              >
                 <svg className="w-6 h-6 text-primary-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 <span className="text-sm font-medium text-gray-900">Nova Paciente</span>
               </button>
 
-              <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all">
-                <svg className="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <span className="text-sm font-medium text-gray-900">Upload RAG</span>
-              </button>
+              {session?.user?.role === 'superadmin' ? (
+                <button 
+                  onClick={() => router.push('/rag')}
+                  className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all"
+                >
+                  <svg className="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-900">Upload RAG</span>
+                </button>
+              ) : (
+                <button 
+                  onClick={() => router.push('/analyses')}
+                  className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all"
+                >
+                  <svg className="w-6 h-6 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-900">Ver Análises</span>
+                </button>
+              )}
 
-              <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all">
+              <button 
+                onClick={() => router.push('/delivery')}
+                className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all"
+              >
                 <svg className="w-6 h-6 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
-                <span className="text-sm font-medium text-gray-900">Relatórios</span>
+                <span className="text-sm font-medium text-gray-900">Entrega</span>
               </button>
             </div>
           </div>

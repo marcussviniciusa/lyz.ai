@@ -18,11 +18,11 @@ export async function POST(
 
     const { id } = await params
     const body = await request.json()
-    const { review, rating } = body
+    const { reviewStatus, reviewNotes } = body
 
-    if (!review || rating === undefined) {
+    if (!reviewStatus) {
       return Response.json(
-        { error: 'Review e rating são obrigatórios' },
+        { error: 'Status da revisão é obrigatório' },
         { status: 400 }
       )
     }
@@ -36,19 +36,25 @@ export async function POST(
       )
     }
 
-    // Atualizar a análise com o review
-    analysis.review = {
-      content: review,
-      rating: rating,
-      reviewedBy: session.user.id,
-      reviewedAt: new Date()
+    // Atualizar a análise com a revisão
+    analysis.professionalReview = {
+      reviewed: true,
+      reviewedAt: new Date(),
+      adjustments: reviewNotes || '',
+      approved: reviewStatus === 'approved',
+      notes: reviewNotes || ''
+    }
+
+    // Atualizar status se aprovado
+    if (reviewStatus === 'approved') {
+      analysis.status = 'approved'
     }
 
     await analysis.save()
 
     return Response.json({
       success: true,
-      message: 'Review adicionado com sucesso',
+      message: 'Revisão realizada com sucesso',
       analysis: analysis
     })
 

@@ -21,9 +21,8 @@ export async function GET(request: Request) {
 
     // Buscar análises que precisam de revisão
     const pendingReviews = await Analysis.find({
-      companyId: user.companyId,
-      status: 'completed',
-      reviewStatus: { $in: ['pending', 'needs_revision'] }
+      company: user.company,
+      status: 'completed'
     })
     .populate('patient', 'name email')
     .populate('professional', 'name email')
@@ -31,7 +30,7 @@ export async function GET(request: Request) {
 
     return Response.json({
       success: true,
-      reviews: pendingReviews
+      analyses: pendingReviews
     })
 
   } catch (error) {
