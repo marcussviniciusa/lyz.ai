@@ -22,6 +22,21 @@ export default function RAGPage() {
   const [searching, setSearching] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
 
+  // Verificar acesso - apenas superadmin
+  useEffect(() => {
+    if (status === 'loading') return
+    
+    if (!session) {
+      router.push('/auth/login')
+      return
+    }
+
+    if (session.user.role !== 'superadmin') {
+      router.push('/dashboard')
+      return
+    }
+  }, [session, status, router])
+
   const categories = [
     { id: 'all', name: 'Todos os Documentos', key: 'all' },
     { id: 'pesquisas-cientificas', name: 'Pesquisas Científicas', key: 'pesquisas-cientificas' },

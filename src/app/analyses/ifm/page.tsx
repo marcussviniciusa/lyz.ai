@@ -193,7 +193,7 @@ export default function IFMAnalysisPage() {
 
   const loadExistingAnalyses = useCallback(async () => {
     try {
-      const response = await fetch(`/api/analyses/${selectedPatient}`);
+      const response = await fetch(`/api/analyses?patientId=${selectedPatient}`);
       if (response.ok) {
         const data = await response.json();
         const relevantAnalyses = data.data?.filter((analysis: any) => 
@@ -391,7 +391,7 @@ export default function IFMAnalysisPage() {
                     {existingAnalyses.length > 0 ? (
                       <div className="space-y-2">
                         {existingAnalyses.map((analysis: any) => (
-                          <div key={analysis.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div key={analysis._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div className="flex items-center">
                               <div className="w-3 h-3 rounded-full bg-green-500 mr-3"></div>
                               <span className="text-sm font-medium text-gray-900">

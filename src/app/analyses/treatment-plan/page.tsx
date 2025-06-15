@@ -193,7 +193,7 @@ export default function TreatmentPlanPage() {
 
   const loadExistingAnalyses = useCallback(async () => {
     try {
-      const response = await fetch(`/api/analyses/${selectedPatientId}`);
+      const response = await fetch(`/api/analyses?patientId=${selectedPatientId}`);
       if (response.ok) {
         const data = await response.json();
         const relevantAnalyses = data.data?.filter((analysis: any) => 
@@ -385,7 +385,7 @@ export default function TreatmentPlanPage() {
                     {existingAnalyses.length > 0 ? (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {existingAnalyses.map((analysis: any) => (
-                          <div key={analysis.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                          <div key={analysis._id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                             <div className="flex items-center">
                               <div className="w-3 h-3 rounded-full bg-green-500 mr-3"></div>
                               <div>

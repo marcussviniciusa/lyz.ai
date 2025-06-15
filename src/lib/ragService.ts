@@ -286,29 +286,38 @@ class RAGService {
       // Gerar embedding da query
       const queryEmbedding = await embeddings.embedQuery(params.query)
 
-      // Buscar documentos da empresa/categoria
-      const filter: any = { companyId: validCompanyId }
-      if (params.category) {
-        filter['documentId'] = {
-          $in: await RAGDocument.find({ 
-            companyId: validCompanyId, 
-            category: params.category,
-            status: 'completed'
-          }).distinct('_id')
-        }
-      } else {
-        filter['documentId'] = {
-          $in: await RAGDocument.find({ 
-            companyId: validCompanyId,
-            status: 'completed'
-          }).distinct('_id')
-        }
+      // Buscar documentos da empresa + documentos GLOBAIS do superadmin
+      const companyFilter: any = {
+        $or: [
+          { companyId: validCompanyId }, // Documentos da empresa
+          { companyId: '000000000000000000000000' } // Documentos GLOBAIS do superadmin
+        ]
       }
+
+      let documentIds: any[]
+      if (params.category) {
+        documentIds = await RAGDocument.find({ 
+          ...companyFilter,
+          category: params.category,
+          status: 'completed'
+        }).distinct('_id')
+        console.log(`📂 Buscando em categoria "${params.category}" (empresa + global): ${documentIds.length} documentos`)
+      } else {
+        documentIds = await RAGDocument.find({ 
+          ...companyFilter,
+          status: 'completed'
+        }).distinct('_id')
+        console.log(`📂 Buscando em todas as categorias (empresa + global): ${documentIds.length} documentos`)
+      }
+
+      const filter: any = { documentId: { $in: documentIds } }
 
       // Buscar chunks
       const chunks = await DocumentChunk.find(filter)
         .populate('documentId')
         .limit(params.limit || 50)
+
+      console.log(`🧩 Chunks encontrados: ${chunks.length}`)
 
       // Calcular similaridade
       const results = chunks.map(chunk => {
@@ -320,7 +329,10 @@ class RAGService {
           documentId: chunk.documentId._id.toString(),
           fileName: (chunk.documentId as any).originalFileName,
           chunkIndex: chunk.chunkIndex,
-          metadata: chunk.metadata
+          metadata: {
+            ...chunk.metadata,
+            isGlobal: (chunk.documentId as any).companyId?.toString() === '000000000000000000000000'
+          }
         }
       })
 

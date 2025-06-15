@@ -21,15 +21,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     { name: 'Análises IA', href: '/analyses', icon: 'chart', current: pathname.startsWith('/analyses') },
     { name: 'Revisão', href: '/reviews', icon: 'review', current: pathname.startsWith('/reviews') },
     { name: 'Entrega', href: '/delivery', icon: 'delivery', current: pathname.startsWith('/delivery') },
-    { name: 'RAG Docs', href: '/rag', icon: 'document', current: pathname.startsWith('/rag') },
     { name: 'Relatórios', href: '/reports', icon: 'report', current: pathname.startsWith('/reports') },
   ]
 
-  // Adicionar itens específicos para admin/superadmin
+  // Adicionar RAG apenas para superadmin
+  if (session?.user?.role === 'superadmin') {
+    navigation.push(
+      { name: 'RAG Docs', href: '/rag', icon: 'document', current: pathname.startsWith('/rag') }
+    )
+  }
+
+  // Adicionar usuários para admin e superadmin
   if (session?.user?.role === 'admin' || session?.user?.role === 'superadmin') {
     navigation.push(
-      { name: 'Empresas', href: '/companies', icon: 'building', current: pathname.startsWith('/companies') },
       { name: 'Usuários', href: '/users', icon: 'team', current: pathname.startsWith('/users') }
+    )
+  }
+
+  // Adicionar empresas apenas para superadmin
+  if (session?.user?.role === 'superadmin') {
+    navigation.push(
+      { name: 'Empresas', href: '/companies', icon: 'building', current: pathname.startsWith('/companies') }
     )
   }
 

@@ -83,16 +83,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Salvar a análise no banco de dados
-    const analysis = new Analysis({
+    // Primeiro, verificar se já existe uma análise pendente para este paciente
+    let analysis = await Analysis.findOne({
       patient: patientId,
-      professional: new mongoose.Types.ObjectId(), // Mock user ID para agora
-      company: new mongoose.Types.ObjectId(), // Mock company ID para agora  
       type: 'laboratory',
-      status: 'completed',
-      inputData: {
+      status: 'pending'
+    }).sort({ createdAt: -1 }) // Pegar a mais recente
+
+    if (analysis) {
+      // Atualizar análise existente
+      console.log('📝 Atualizando análise existente:', analysis._id.toString())
+      analysis.status = 'completed'
+      analysis.inputData = {
         laboratoryManualData: examData
-      },
-      result: {
+      }
+      analysis.result = {
         rawOutput: JSON.stringify(analysisResults),
         laboratoryAnalysis: {
           interpretation: analysisResults.summary,
@@ -111,23 +116,67 @@ export async function POST(request: NextRequest) {
           })),
           recommendations: analysisResults.recommendations
         }
-      },
-      // Usar metadados reais da análise
-      aiMetadata: analysisData.aiMetadata || {
+      }
+      analysis.aiMetadata = analysisData.aiMetadata || {
         provider: 'openai',
         model: 'gpt-4o-mini',
         promptVersion: '1.0',
         tokensUsed: 0,
         processingTime: 0,
         cost: 0
-      },
-      createdAt: new Date(),
-      updatedAt: new Date()
-    })
+      }
+      analysis.updatedAt = new Date()
+      
+      await analysis.save()
+      console.log('✅ Análise existente atualizada com sucesso. ID:', analysis._id.toString())
+    } else {
+      // Criar nova análise se não existir
+      analysis = new Analysis({
+        patient: patientId,
+        professional: new mongoose.Types.ObjectId(), // Mock user ID para agora
+        company: new mongoose.Types.ObjectId(), // Mock company ID para agora  
+        type: 'laboratory',
+        status: 'completed',
+        inputData: {
+          laboratoryManualData: examData
+        },
+        result: {
+          rawOutput: JSON.stringify(analysisResults),
+          laboratoryAnalysis: {
+            interpretation: analysisResults.summary,
+            alteredValues: analysisResults.results.filter(r => r.status !== 'normal').map(r => ({
+              parameter: r.name,
+              value: r.value,
+              referenceRange: r.referenceRange,
+              interpretation: r.interpretation,
+              priority: r.priority
+            })),
+            functionalMedicineComparison: analysisResults.results.map(r => ({
+              parameter: r.name,
+              conventionalRange: r.referenceRange,
+              functionalRange: r.functionalRange || 'N/A',
+              status: r.status
+            })),
+            recommendations: analysisResults.recommendations
+          }
+        },
+        // Usar metadados reais da análise
+        aiMetadata: analysisData.aiMetadata || {
+          provider: 'openai',
+          model: 'gpt-4o-mini',
+          promptVersion: '1.0',
+          tokensUsed: 0,
+          processingTime: 0,
+          cost: 0
+        },
+        createdAt: new Date(),
+        updatedAt: new Date()
+      })
 
-    console.log('💾 Salvando análise no banco de dados')
-    await analysis.save()
-    console.log('✅ Análise salva com sucesso. ID:', analysis._id.toString())
+      console.log('💾 Criando nova análise no banco de dados')
+      await analysis.save()
+      console.log('✅ Nova análise criada com sucesso. ID:', analysis._id.toString())
+    }
 
     // Retornar resultados com ID da análise salva
     return NextResponse.json({

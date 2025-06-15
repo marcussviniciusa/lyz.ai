@@ -24,20 +24,49 @@ export async function GET(
       return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
     }
 
+    console.log('🔍 API Análise [ID] - Debug:')
+    console.log('- Analysis ID:', resolvedParams.id)
+    console.log('- User ID:', session.user.id)
+    console.log('- User Role:', session.user.role)
+    console.log('- User Company:', session.user.company)
+
     const analysis = await Analysis.findById(resolvedParams.id)
       .populate('patient', 'name dateOfBirth')
       .populate('professional', 'name email')
       .populate('company', 'name')
     
     if (!analysis) {
+      console.log('❌ Análise não encontrada')
       return NextResponse.json({ error: 'Análise não encontrada' }, { status: 404 })
     }
 
+    console.log('📊 Dados da análise encontrada:')
+    console.log('- Analysis Company (raw):', analysis.company)
+    console.log('- Analysis Company tipo:', typeof analysis.company)
+    
+    // Obter o ID da empresa da análise
+    let analysisCompanyId = null
+    if (analysis.company) {
+      // Se company foi populado, pegar o _id
+      if (typeof analysis.company === 'object' && analysis.company._id) {
+        analysisCompanyId = analysis.company._id.toString()
+      } else {
+        // Se é ObjectId direto
+        analysisCompanyId = analysis.company.toString()
+      }
+    }
+
+    console.log('- Analysis Company ID extraído:', analysisCompanyId)
+    console.log('- User Company ID:', session.user.company)
+    console.log('- Empresas são iguais?', analysisCompanyId === session.user.company)
+
     // Verificar se o usuário tem acesso a esta análise (mesma empresa)
-    if (session.user.role !== 'superadmin' && analysis.company.toString() !== session.user.company) {
+    if (session.user.role !== 'superadmin' && analysisCompanyId !== session.user.company) {
+      console.log('❌ Acesso negado - empresas diferentes')
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
+    console.log('✅ Acesso permitido - retornando análise')
     return NextResponse.json(analysis)
   } catch (error) {
     console.error('Erro ao buscar análise:', error)

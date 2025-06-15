@@ -14,6 +14,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
+    // Apenas superadmin pode acessar documentos RAG
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Acesso negado - apenas superadmin' }, { status: 403 })
+    }
+
     await dbConnect()
 
     const { searchParams } = new URL(request.url)
@@ -47,29 +52,32 @@ export async function GET(request: NextRequest) {
       processedCompany: companyId
     })
 
-    // Construir filtro
-    const filter: any = { 
-      companyId: companyId
+    // Construir filtro para incluir documentos da empresa + documentos globais
+    const companyFilter: any = {
+      $or: [
+        { companyId: companyId }, // Documentos da empresa
+        { companyId: '000000000000000000000000' } // Documentos GLOBAIS do superadmin
+      ]
     }
     
     if (category && category !== 'all') {
-      filter.category = category
+      companyFilter.category = category
     }
     
     if (status && status !== 'all') {
-      filter.status = status
+      companyFilter.status = status
     }
 
     // Buscar documentos com paginação
     const skip = (page - 1) * limit
     const [documents, total, stats] = await Promise.all([
-      RAGDocument.find(filter)
+      RAGDocument.find(companyFilter)
         .populate('uploadedBy', 'name email')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      RAGDocument.countDocuments(filter),
+      RAGDocument.countDocuments(companyFilter),
       RAGService.getDocumentStats(companyId)
     ])
 
@@ -108,6 +116,11 @@ export async function DELETE(request: NextRequest) {
     
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    // Apenas superadmin pode deletar documentos RAG
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Acesso negado - apenas superadmin' }, { status: 403 })
     }
 
     await dbConnect()

@@ -13,6 +13,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
+    // Apenas superadmin pode buscar no RAG
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Acesso negado - apenas superadmin' }, { status: 403 })
+    }
+
     await dbConnect()
 
     const { query, category, limit = 5, threshold = 0.7 } = await request.json()
@@ -114,6 +119,11 @@ export async function GET(request: NextRequest) {
     
     if (!session) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
+    // Apenas superadmin pode acessar busca RAG
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Acesso negado - apenas superadmin' }, { status: 403 })
     }
 
     await dbConnect()

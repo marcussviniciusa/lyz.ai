@@ -166,7 +166,7 @@ export async function GET(request: NextRequest) {
         symptoms: patient.mainSymptoms?.slice(0, 3) || []
       })),
       recentAnalyses: recentAnalyses.map(analysis => ({
-        id: analysis._id,
+        _id: analysis._id,
         type: analysis.type,
         patient: {
           id: analysis.patient?._id,
@@ -174,6 +174,8 @@ export async function GET(request: NextRequest) {
         },
         user: analysis.professional?.name,
         createdAt: analysis.createdAt,
+        status: analysis.status || 'completed',
+        cost: analysis.aiMetadata?.cost || 0,
         processingTime: analysis.aiMetadata?.processingTime
       })),
       aiProviders: company?.settings?.aiProviders ? {

@@ -286,15 +286,15 @@ export default function DashboardPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {dashboardData.recentAnalyses.map((analysis: any) => (
-                      <tr key={analysis.id} className="hover:bg-gray-50">
+                      <tr key={analysis._id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {analysis.type}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {analysis.patient}
+                          {analysis.patient?.name || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {analysis.createdBy}
+                          {analysis.user || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(analysis.createdAt).toLocaleDateString('pt-BR')}
@@ -312,7 +312,7 @@ export default function DashboardPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          R$ {analysis.cost.toFixed(2)}
+                          R$ {(analysis.cost || 0).toFixed(2)}
                         </td>
                       </tr>
                     ))}

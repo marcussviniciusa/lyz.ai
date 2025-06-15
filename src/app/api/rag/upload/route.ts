@@ -13,6 +13,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
     }
 
+    // Apenas superadmin pode fazer upload no RAG
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Acesso negado - apenas superadmin' }, { status: 403 })
+    }
+
     await dbConnect()
 
     const formData = await request.formData()
@@ -76,8 +81,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Garantir ObjectIds válidos
-    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
-    const uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy')
+    // Para superadmin, usar ID GLOBAL FIXO para que documentos sirvam todo o sistema
+    let companyId: string;
+    let uploadedBy: string;
+    
+    if (session.user.role === 'superadmin') {
+      // Usar ID GLOBAL FIXO para documentos que servem todo o sistema
+      companyId = '000000000000000000000000'; // ID global fixo
+      uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy');
+      console.log('🌐 SUPERADMIN: Documento será GLOBAL (disponível para todas as empresas)');
+    } else {
+      // Para outros usuários, usar empresa específica
+      companyId = ensureValidObjectId(session.user?.company, 'companyId');
+      uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy');
+      console.log('🏢 Documento será específico da empresa:', companyId);
+    }
 
     console.log('📋 Upload RAG - IDs processados:', { 
       originalCompany: session.user?.company,

@@ -19,15 +19,18 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
     const search = searchParams.get('search') || ''
 
-    // Filtros baseados na empresa do usuário (por enquanto simples)
+    // Filtros baseados na empresa do usuário
     const query: any = {
       isActive: true
     }
 
-    // TODO: Implementar filtro por empresa quando o sistema de autenticação estiver completo
-    // Por enquanto, mostrar todos os pacientes para debug
-    console.log('Session user:', session.user)
-    console.log('Query:', query)
+    // Filtrar por empresa: superadmin vê todos, outros apenas da sua empresa
+    if (session.user.role !== 'superadmin') {
+      if (!session.user.company) {
+        return NextResponse.json({ error: 'Usuário sem empresa associada' }, { status: 403 })
+      }
+      query.company = session.user.company
+    }
 
     // Filtro de busca
     if (search) {
@@ -126,8 +129,22 @@ export async function POST(request: NextRequest) {
 
     // Gerar ObjectIds temporários para desenvolvimento
     const mongoose = require('mongoose')
-    const companyId = new mongoose.Types.ObjectId() // Temporário - será substituído por company real
-    const professionalId = new mongoose.Types.ObjectId() // Temporário - será substituído por user real
+    
+    // Usar dados reais da sessão
+    let companyId = session.user.company
+    let professionalId = session.user.id
+
+    // Para superadmin que não tem empresa, permitir criar paciente sem empresa (para testes)
+    if (session.user.role === 'superadmin' && !companyId) {
+      companyId = new mongoose.Types.ObjectId() // Temporário apenas para superadmin
+    }
+
+    if (!companyId && session.user.role !== 'superadmin') {
+      return NextResponse.json(
+        { error: 'Usuário deve estar associado a uma empresa' },
+        { status: 400 }
+      )
+    }
 
     // Preparar dados do paciente
     const patientData: any = {
