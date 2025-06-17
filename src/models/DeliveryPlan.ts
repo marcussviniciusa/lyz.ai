@@ -27,6 +27,18 @@ export interface IDeliveryPlan extends Document {
     lastAccessed?: Date // Última vez que foi acessado
   }
   
+  // Sistema de compartilhamento
+  shareLink?: {
+    token: string // Token único para o link
+    isPublic: boolean // Se é público ou privado
+    password?: string // Senha para acesso (opcional)
+    expiresAt: Date // Data de expiração
+    createdAt: Date // Data de criação do link
+    accessCount: number // Contador de acessos
+    lastAccessed?: Date // Último acesso
+    isActive: boolean // Se o link está ativo
+  }
+  
   // Status do plano
   status: 'generated' | 'delivered' | 'viewed_by_patient' | 'archived'
   
@@ -110,6 +122,40 @@ const DeliveryPlanSchema = new Schema<IDeliveryPlan>({
       type: Date
     }
   },
+  shareLink: {
+    token: {
+      type: String,
+      unique: true,
+      sparse: true
+    },
+    isPublic: {
+      type: Boolean,
+      default: true
+    },
+    password: {
+      type: String,
+      required: false
+    },
+    expiresAt: {
+      type: Date,
+      required: false
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
+    accessCount: {
+      type: Number,
+      default: 0
+    },
+    lastAccessed: {
+      type: Date
+    },
+    isActive: {
+      type: Boolean,
+      default: false
+    }
+  },
   status: {
     type: String,
     enum: ['generated', 'delivered', 'viewed_by_patient', 'archived'],
@@ -135,6 +181,8 @@ const DeliveryPlanSchema = new Schema<IDeliveryPlan>({
 DeliveryPlanSchema.index({ patient: 1, createdAt: -1 })
 DeliveryPlanSchema.index({ company: 1, status: 1 })
 DeliveryPlanSchema.index({ professional: 1, createdAt: -1 })
+DeliveryPlanSchema.index({ 'shareLink.token': 1 })
+DeliveryPlanSchema.index({ 'shareLink.expiresAt': 1 })
 
 const DeliveryPlan = mongoose.models.DeliveryPlan || mongoose.model<IDeliveryPlan>('DeliveryPlan', DeliveryPlanSchema)
 

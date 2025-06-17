@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { 
   Download, 
   ArrowLeft, 
@@ -13,7 +16,13 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Eye
+  Eye,
+  Share2,
+  Copy,
+  Shield,
+  Globe,
+  Calendar,
+  BarChart3
 } from 'lucide-react'
 
 interface DeliveryPlan {
@@ -43,6 +52,16 @@ interface DeliveryPlan {
     url: string
     size: number
     generatedAt: string
+  }
+  shareLink?: {
+    token: string
+    isPublic: boolean
+    password?: string
+    expiresAt: string
+    createdAt: string
+    accessCount: number
+    lastAccessed?: string
+    isActive: boolean
   }
   title: string
   description?: string
@@ -285,6 +304,17 @@ export default function DeliveryPlanPage() {
   const [downloadingPage, setDownloadingPage] = useState(false)
   const [isPrintMode, setIsPrintMode] = useState(false)
   
+  // Estados para compartilhamento
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [shareData, setShareData] = useState({
+    isPublic: true,
+    password: '',
+    expirationHours: 24
+  })
+  const [shareLink, setShareLink] = useState<any>(null)
+  const [creatingShare, setCreatingShare] = useState(false)
+  const [loadingShareStatus, setLoadingShareStatus] = useState(false)
+  
   useEffect(() => {
     // Detectar modo de impressão
     const urlParams = new URLSearchParams(window.location.search)
@@ -397,6 +427,93 @@ export default function DeliveryPlanPage() {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('pt-BR')
   }
+
+  // Funções de compartilhamento
+  const loadShareStatus = async () => {
+    if (!plan) return
+    
+    setLoadingShareStatus(true)
+    try {
+      const response = await fetch(`/api/delivery/plans/${plan._id}/share`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.hasActiveLink) {
+          setShareLink(data)
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar status do compartilhamento:', error)
+    } finally {
+      setLoadingShareStatus(false)
+    }
+  }
+
+  const createShareLink = async () => {
+    if (!plan) return
+    
+    setCreatingShare(true)
+    try {
+      const response = await fetch(`/api/delivery/plans/${plan._id}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(shareData)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao criar link')
+      }
+
+      const data = await response.json()
+      setShareLink(data)
+      setShowShareModal(false)
+      alert('Link de compartilhamento criado com sucesso!')
+    } catch (error) {
+      console.error('Erro ao criar link:', error)
+      alert(error instanceof Error ? error.message : 'Erro ao criar link')
+    } finally {
+      setCreatingShare(false)
+    }
+  }
+
+  const revokeShareLink = async () => {
+    if (!plan || !shareLink) return
+    
+    try {
+      const response = await fetch(`/api/delivery/plans/${plan._id}/share`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro ao revogar link')
+      }
+
+      setShareLink(null)
+      alert('Link de compartilhamento revogado com sucesso!')
+    } catch (error) {
+      console.error('Erro ao revogar link:', error)
+      alert('Erro ao revogar link')
+    }
+  }
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('Link copiado para a área de transferência!')
+    } catch (error) {
+      console.error('Erro ao copiar:', error)
+      alert('Erro ao copiar link')
+    }
+  }
+
+  // Carregar status do compartilhamento quando o plano for carregado
+  useEffect(() => {
+    if (plan && !isPrintMode) {
+      loadShareStatus()
+    }
+  }, [plan, isPrintMode])
 
   if (loading) {
     return (
@@ -641,6 +758,15 @@ export default function DeliveryPlanPage() {
               )}
               PDF Página
             </Button>
+            <Button 
+              onClick={() => setShowShareModal(true)}
+              variant="outline"
+              size="sm"
+              className="bg-primary-50 border-primary-300 text-primary-700 hover:bg-primary-100"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Compartilhar
+            </Button>
           </div>
         </div>
       )}
@@ -712,6 +838,92 @@ export default function DeliveryPlanPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Card de Compartilhamento */}
+      {!isPrintMode && (
+        <Card className="mb-6 card">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Share2 className="h-5 w-5 mr-2" />
+              Compartilhamento com Paciente
+            </CardTitle>
+            <CardDescription>
+              Gere um link para compartilhar este plano diretamente com a paciente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingShareStatus ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+              </div>
+            ) : shareLink ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center">
+                      <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+                      <span className="font-medium text-green-900">Link Ativo</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className="text-xs">
+                        <Globe className="w-3 h-3 mr-1" />
+                        {shareLink.isPublic ? 'Público' : 'Protegido'}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        <BarChart3 className="w-3 h-3 mr-1" />
+                        {shareLink.accessCount} acessos
+                      </Badge>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 mb-3">
+                    <Input 
+                      value={shareLink.shareUrl} 
+                      readOnly 
+                      className="text-sm"
+                    />
+                    <Button 
+                      onClick={() => copyToClipboard(shareLink.shareUrl)}
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-sm text-gray-600">
+                    <span>
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      Expira em: {formatDate(shareLink.expiresAt)}
+                    </span>
+                    <Button 
+                      onClick={revokeShareLink}
+                      size="sm"
+                      variant="destructive"
+                    >
+                      Revogar Link
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Share2 className="w-8 h-8 text-gray-400" />
+                </div>
+                <p className="text-gray-600 mb-4">Nenhum link de compartilhamento ativo</p>
+                <Button 
+                  onClick={() => setShowShareModal(true)}
+                  className="bg-primary-600 hover:bg-primary-700"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Criar Link de Compartilhamento
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Prévia das Análises - Exatamente como foram criadas */}
       <Card className="mb-6 card">
@@ -822,6 +1034,170 @@ export default function DeliveryPlanPage() {
         </CardContent>
       </Card>
     </div>
+
+    {/* Modal de Compartilhamento */}
+    {showShareModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Configurar Compartilhamento
+              </h3>
+              <Button 
+                onClick={() => setShowShareModal(false)}
+                variant="ghost"
+                size="sm"
+              >
+                ✕
+              </Button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Tempo de expiração */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tempo de expiração
+                </label>
+                <Select
+                  value={shareData.expirationHours.toString()}
+                  onValueChange={(value) => setShareData({
+                    ...shareData,
+                    expirationHours: parseInt(value)
+                  })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 hora</SelectItem>
+                    <SelectItem value="6">6 horas</SelectItem>
+                    <SelectItem value="12">12 horas</SelectItem>
+                    <SelectItem value="24">24 horas</SelectItem>
+                    <SelectItem value="48">2 dias</SelectItem>
+                    <SelectItem value="168">7 dias</SelectItem>
+                    <SelectItem value="720">30 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tipo de acesso */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Tipo de acesso
+                </label>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="public"
+                        name="accessType"
+                        checked={shareData.isPublic}
+                        onChange={() => setShareData({
+                          ...shareData,
+                          isPublic: true,
+                          password: ''
+                        })}
+                        className="w-4 h-4 text-primary-600"
+                      />
+                      <label htmlFor="public" className="ml-2 cursor-pointer">
+                        <div className="flex items-center">
+                          <Globe className="w-4 h-4 text-green-600 mr-2" />
+                          <span className="font-medium">Público</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Qualquer pessoa com o link pode acessar
+                        </p>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-3 border rounded-lg">
+                    <div className="flex items-center">
+                      <input
+                        type="radio"
+                        id="private"
+                        name="accessType"
+                        checked={!shareData.isPublic}
+                        onChange={() => setShareData({
+                          ...shareData,
+                          isPublic: false
+                        })}
+                        className="w-4 h-4 text-primary-600"
+                      />
+                      <label htmlFor="private" className="ml-2 cursor-pointer">
+                        <div className="flex items-center">
+                          <Shield className="w-4 h-4 text-blue-600 mr-2" />
+                          <span className="font-medium">Protegido por senha</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Requer senha para acessar
+                        </p>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Campo de senha (apenas se não for público) */}
+              {!shareData.isPublic && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Senha de acesso
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder="Digite uma senha"
+                    value={shareData.password}
+                    onChange={(e) => setShareData({
+                      ...shareData,
+                      password: e.target.value
+                    })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Compartilhe esta senha com a paciente para que ela possa acessar o plano
+                  </p>
+                </div>
+              )}
+
+              {/* Resumo */}
+              <div className="p-4 bg-primary-50 border border-primary-200 rounded-lg">
+                <h4 className="font-medium text-primary-900 mb-2">Resumo da configuração:</h4>
+                <ul className="text-sm text-primary-800 space-y-1">
+                  <li>• Expira em: {shareData.expirationHours}h</li>
+                  <li>• Acesso: {shareData.isPublic ? 'Público' : 'Protegido por senha'}</li>
+                  {!shareData.isPublic && shareData.password && (
+                    <li>• Senha definida: ✓</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+              <Button 
+                onClick={() => setShowShareModal(false)}
+                variant="outline"
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={createShareLink}
+                disabled={creatingShare || (!shareData.isPublic && !shareData.password)}
+                className="bg-primary-600 hover:bg-primary-700"
+              >
+                {creatingShare ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                ) : (
+                  <Share2 className="h-4 w-4 mr-2" />
+                )}
+                Criar Link
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 } 
