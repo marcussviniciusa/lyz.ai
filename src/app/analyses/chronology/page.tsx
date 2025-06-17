@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -100,7 +100,7 @@ const renderMarkdown = (markdown: string) => {
   return html;
 };
 
-export default function ChronologyAnalysisPage() {
+function ChronologyAnalysisContent() {
   const { status } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1006,5 +1006,22 @@ export default function ChronologyAnalysisPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ChronologyAnalysisPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Carregando análise de cronologia...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <ChronologyAnalysisContent />
+    </Suspense>
   );
 } 

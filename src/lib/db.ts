@@ -1,11 +1,5 @@
 import mongoose from 'mongoose'
 
-const MONGODB_URI = process.env.MONGODB_URI!
-
-if (!MONGODB_URI) {
-  throw new Error('Por favor, defina a variável de ambiente MONGODB_URI no arquivo .env.local')
-}
-
 interface GlobalMongoose {
   conn: typeof mongoose | null
   promise: Promise<typeof mongoose> | null
@@ -15,6 +9,12 @@ interface GlobalMongoose {
 let cached: GlobalMongoose = { conn: null, promise: null }
 
 async function dbConnect(): Promise<typeof mongoose> {
+  const MONGODB_URI = process.env.MONGODB_URI!
+
+  if (!MONGODB_URI) {
+    throw new Error('Por favor, defina a variável de ambiente MONGODB_URI no arquivo .env.local')
+  }
+
   if (cached.conn) {
     return cached.conn
   }

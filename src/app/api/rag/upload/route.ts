@@ -63,9 +63,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Função para garantir ObjectId válido
-    const ensureValidObjectId = (value: any, fieldName: string): string => {
+    const ensureValidObjectId = (value: any, fieldName: string, isSuperAdmin: boolean = false): string => {
       if (!value) {
-        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        if (!isSuperAdmin) {
+          console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        }
         // Usar ObjectId fixo para desenvolvimento para manter consistência
         return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
       }
@@ -76,7 +78,9 @@ export async function POST(request: NextRequest) {
       }
       
       // Se é uma string simples (como "1"), usar ObjectId fixo para manter consistência
-      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      if (!isSuperAdmin) {
+        console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      }
       return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
     }
 
@@ -88,12 +92,12 @@ export async function POST(request: NextRequest) {
     if (session.user.role === 'superadmin') {
       // Usar ID GLOBAL FIXO para documentos que servem todo o sistema
       companyId = '000000000000000000000000'; // ID global fixo
-      uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy');
+      uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy', true);
       console.log('🌐 SUPERADMIN: Documento será GLOBAL (disponível para todas as empresas)');
     } else {
       // Para outros usuários, usar empresa específica
-      companyId = ensureValidObjectId(session.user?.company, 'companyId');
-      uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy');
+      companyId = ensureValidObjectId(session.user?.company, 'companyId', false);
+      uploadedBy = ensureValidObjectId(session.user?.id, 'uploadedBy', false);
       console.log('🏢 Documento será específico da empresa:', companyId);
     }
 

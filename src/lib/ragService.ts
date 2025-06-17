@@ -47,6 +47,17 @@ class RAGService {
     })
   }
 
+  // Função auxiliar para validar companyId sem logs desnecessários para superadmin
+  private ensureValidCompanyId(companyId: string, operation: string, isSuperAdmin: boolean = false): string {
+    if (!mongoose.Types.ObjectId.isValid(companyId)) {
+      if (!isSuperAdmin) {
+        console.warn(`CompanyId inválido para ${operation} (${companyId}), usando ObjectId fixo para desenvolvimento`)
+      }
+      return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
+    }
+    return companyId
+  }
+
   private async initializeEmbeddings(companyId: string): Promise<OpenAIEmbeddings> {
     if (this.embeddings) {
       return this.embeddings
@@ -274,11 +285,7 @@ class RAGService {
   async searchDocuments(params: DocumentSearchParams): Promise<SearchResult[]> {
     try {
       // Garantir que companyId seja um ObjectId válido
-      let validCompanyId: any = params.companyId
-      if (!mongoose.Types.ObjectId.isValid(params.companyId)) {
-        console.warn(`CompanyId inválido para busca (${params.companyId}), usando ObjectId fixo para desenvolvimento`)
-        validCompanyId = '507f1f77bcf86cd799439011' // ObjectId fixo para dev
-      }
+      const validCompanyId = this.ensureValidCompanyId(params.companyId, 'busca', true) // true = é superadmin, não gerar logs
 
       // Inicializar embeddings
       const embeddings = await this.initializeEmbeddings(params.companyId)
@@ -379,11 +386,7 @@ class RAGService {
   async getDocumentStats(companyId: string) {
     try {
       // Garantir que companyId seja um ObjectId válido
-      let validCompanyId: any = companyId
-      if (!mongoose.Types.ObjectId.isValid(companyId)) {
-        console.warn(`CompanyId inválido para stats (${companyId}), usando ObjectId fixo para desenvolvimento`)
-        validCompanyId = '507f1f77bcf86cd799439011' // ObjectId fixo para dev
-      }
+      const validCompanyId = this.ensureValidCompanyId(companyId, 'stats', true) // true = é superadmin, não gerar logs
 
       const [totalDocs, processingDocs, completedDocs, errorDocs, categoryStats] = await Promise.all([
         RAGDocument.countDocuments({ companyId: validCompanyId }),
@@ -420,11 +423,7 @@ class RAGService {
   async deleteDocument(documentId: string, companyId: string): Promise<boolean> {
     try {
       // Garantir que companyId seja um ObjectId válido
-      let validCompanyId: any = companyId
-      if (!mongoose.Types.ObjectId.isValid(companyId)) {
-        console.warn(`CompanyId inválido para deleção (${companyId}), usando ObjectId fixo para desenvolvimento`)
-        validCompanyId = '507f1f77bcf86cd799439011' // ObjectId fixo para dev
-      }
+      const validCompanyId = this.ensureValidCompanyId(companyId, 'deleção', true) // true = é superadmin, não gerar logs
 
       // Verificar se o documento pertence à empresa
       const document = await RAGDocument.findOne({

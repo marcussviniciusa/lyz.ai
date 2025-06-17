@@ -30,9 +30,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Função para garantir ObjectId válido
-    const ensureValidObjectId = (value: any, fieldName: string): string => {
+    const ensureValidObjectId = (value: any, fieldName: string, isSuperAdmin: boolean = false): string => {
       if (!value) {
-        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        if (!isSuperAdmin) {
+          console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        }
         return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
       }
       
@@ -40,11 +42,13 @@ export async function POST(request: NextRequest) {
         return value.toString()
       }
       
-      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      if (!isSuperAdmin) {
+        console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      }
       return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
     }
 
-    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
+    const companyId = ensureValidObjectId(session.user?.company, 'companyId', session.user.role === 'superadmin')
 
     console.log('🔍 === INICIANDO BUSCA RAG MANUAL ===')
     console.log('📊 Parâmetros de busca:', { 
@@ -129,9 +133,11 @@ export async function GET(request: NextRequest) {
     await dbConnect()
 
     // Função para garantir ObjectId válido
-    const ensureValidObjectId = (value: any, fieldName: string): string => {
+    const ensureValidObjectId = (value: any, fieldName: string, isSuperAdmin: boolean = false): string => {
       if (!value) {
-        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        if (!isSuperAdmin) {
+          console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        }
         // Usar ObjectId fixo para desenvolvimento para manter consistência
         return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
       }
@@ -140,11 +146,13 @@ export async function GET(request: NextRequest) {
         return value.toString()
       }
       
-      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      if (!isSuperAdmin) {
+        console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      }
       return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
     }
 
-    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
+    const companyId = ensureValidObjectId(session.user?.company, 'companyId', session.user.role === 'superadmin')
 
     // Buscar estatísticas de busca ou documentos recentes
     const stats = await RAGService.getDocumentStats(companyId)

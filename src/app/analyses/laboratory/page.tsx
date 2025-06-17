@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -36,7 +36,7 @@ interface AnalysisResult {
   followUp: string
 }
 
-export default function LaboratoryAnalysisPage() {
+function LaboratoryAnalysisContent() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -748,5 +748,20 @@ CNES, CRF, idade, cadastro, telefone, endereço, etc."
         )}
       </div>
     </DashboardLayout>
+  )
+}
+
+export default function LaboratoryAnalysisPage() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Carregando análise laboratorial...</p>
+        </div>
+      </DashboardLayout>
+    }>
+      <LaboratoryAnalysisContent />
+    </Suspense>
   )
 } 

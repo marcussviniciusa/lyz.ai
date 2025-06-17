@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   serverExternalPackages: ['mongoose', 'minio', 'pdf-parse'],
   images: {
     domains: ['localhost', 's3.marcussviniciusa.cloud'],

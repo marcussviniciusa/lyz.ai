@@ -8,7 +8,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "create-superadmin": "node create-superadmin.js",
+    "create-superadmin-quick": "node create-superadmin-quick.js",
+    "check-superadmins": "node check-superadmins.js",
+    "test-rag-logs": "node test-rag-logs.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",

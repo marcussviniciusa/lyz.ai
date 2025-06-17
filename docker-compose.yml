@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  lyz-ai:
+    image: seunome/lyz-ai:latest  # Substitua pelo seu usuário do Docker Hub
+    container_name: lyz-ai
+    restart: unless-stopped
+    environment:
+      # Configurações do Next.js
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      
+      # Configurações do MongoDB
+      - MONGODB_URI=mongodb://mongo:27017/lyz-ai  # Ajuste conforme sua configuração
+      
+      # Configurações do NextAuth
+      - NEXTAUTH_URL=https://lyz.seudominio.com  # Substitua pelo seu domínio
+      - NEXTAUTH_SECRET=seu-secret-super-seguro-aqui  # Gere um secret seguro
+      
+      # Configurações da IA (OpenAI/Anthropic)
+      - OPENAI_API_KEY=sua-chave-openai-aqui
+      - ANTHROPIC_API_KEY=sua-chave-anthropic-aqui
+      
+      # Configurações do MinIO
+      - MINIO_ENDPOINT=minio:9000  # Ajuste conforme sua configuração
+      - MINIO_ACCESS_KEY=sua-access-key-minio
+      - MINIO_SECRET_KEY=sua-secret-key-minio
+      - MINIO_BUCKET_NAME=lyz-ai-files
+      - MINIO_USE_SSL=false  # true se usar HTTPS
+      
+      # Configurações do Google Vision (opcional)
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
+      
+    networks:
+      - traefik
+      - lyz-ai-network
+    
+    labels:
+      # Configurações do Traefik
+      - "traefik.enable=true"
+      - "traefik.http.routers.lyz-ai.rule=Host(`lyz.seudominio.com`)"  # Substitua pelo seu domínio
+      - "traefik.http.routers.lyz-ai.entrypoints=websecure"
+      - "traefik.http.routers.lyz-ai.tls.certresolver=letsencrypt"
+      - "traefik.http.services.lyz-ai.loadbalancer.server.port=3000"
+      
+      # Redirecionamento HTTP para HTTPS
+      - "traefik.http.routers.lyz-ai-http.rule=Host(`lyz.seudominio.com`)"
+      - "traefik.http.routers.lyz-ai-http.entrypoints=web"
+      - "traefik.http.routers.lyz-ai-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      
+    # Volumes para persistir dados se necessário
+    volumes:
+      # Descomente se usar Google Vision
+      # - ./google-credentials.json:/app/google-credentials.json:ro
+      
+      # Volume para uploads temporários (opcional)
+      # - lyz-ai-uploads:/app/uploads
+    
+    # Dependências (ajuste conforme sua configuração)
+    depends_on:
+      - mongo  # Se o MongoDB estiver no mesmo stack
+      - minio  # Se o MinIO estiver no mesmo stack
+
+networks:
+  traefik:
+    external: true  # Rede externa do Traefik
+  lyz-ai-network:
+    driver: bridge
+
+# Volumes (descomente se necessário)
+# volumes:
+#   lyz-ai-uploads: 

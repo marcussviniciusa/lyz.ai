@@ -28,9 +28,11 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10')
 
     // Função para garantir ObjectId válido
-    const ensureValidObjectId = (value: any, fieldName: string): string => {
+    const ensureValidObjectId = (value: any, fieldName: string, isSuperAdmin: boolean = false): string => {
       if (!value) {
-        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        if (!isSuperAdmin) {
+          console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        }
         return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
       }
       
@@ -40,12 +42,14 @@ export async function GET(request: NextRequest) {
       }
       
       // Se é uma string simples (como "1"), usar ObjectId fixo para manter consistência
-      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      if (!isSuperAdmin) {
+        console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      }
       return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
     }
 
-    // Garantir companyId válido
-    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
+    // Garantir companyId válido (superadmin não tem empresa, é normal)
+    const companyId = ensureValidObjectId(session.user?.company, 'companyId', session.user.role === 'superadmin')
 
     console.log('📋 Listagem RAG - IDs processados:', { 
       originalCompany: session.user?.company,
@@ -136,9 +140,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Garantir companyId válido
-    const ensureValidObjectId = (value: any, fieldName: string): string => {
+    const ensureValidObjectId = (value: any, fieldName: string, isSuperAdmin: boolean = false): string => {
       if (!value) {
-        console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        if (!isSuperAdmin) {
+          console.warn(`${fieldName} não fornecido, usando ObjectId fixo para desenvolvimento`)
+        }
         return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
       }
       
@@ -146,11 +152,13 @@ export async function DELETE(request: NextRequest) {
         return value.toString()
       }
       
-      console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      if (!isSuperAdmin) {
+        console.warn(`${fieldName} inválido (${value}), usando ObjectId fixo para desenvolvimento`)
+      }
       return '507f1f77bcf86cd799439011' // ObjectId fixo para dev
     }
 
-    const companyId = ensureValidObjectId(session.user?.company, 'companyId')
+    const companyId = ensureValidObjectId(session.user?.company, 'companyId', session.user.role === 'superadmin')
 
     const success = await RAGService.deleteDocument(documentId, companyId)
 

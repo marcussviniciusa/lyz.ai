@@ -1,31 +1,40 @@
 import { Client } from 'minio'
 import crypto from 'crypto'
 
-const minioClient = new Client({
-  endPoint: process.env.MINIO_ENDPOINT!,
-  port: parseInt(process.env.MINIO_PORT!) || 9000,
-  useSSL: process.env.MINIO_USE_SSL === 'true',
-  accessKey: process.env.MINIO_ACCESS_KEY!,
-  secretKey: process.env.MINIO_SECRET_KEY!,
-})
+let minioClient: Client | null = null
+
+function getMinioClient(): Client {
+  if (!minioClient) {
+    if (!process.env.MINIO_ENDPOINT) {
+      throw new Error('MINIO_ENDPOINT não configurado')
+    }
+    
+    minioClient = new Client({
+      endPoint: process.env.MINIO_ENDPOINT!,
+      port: parseInt(process.env.MINIO_PORT!) || 9000,
+      useSSL: process.env.MINIO_USE_SSL === 'true',
+      accessKey: process.env.MINIO_ACCESS_KEY!,
+      secretKey: process.env.MINIO_SECRET_KEY!,
+    })
+  }
+  return minioClient
+}
 
 const BUCKET_NAME = process.env.MINIO_BUCKET_NAME || 'lyz-ai-files'
 
 // Inicializar bucket se não existir
 async function ensureBucketExists() {
   try {
-    const exists = await minioClient.bucketExists(BUCKET_NAME)
+    const client = getMinioClient()
+    const exists = await client.bucketExists(BUCKET_NAME)
     if (!exists) {
-      await minioClient.makeBucket(BUCKET_NAME, 'us-east-1')
+      await client.makeBucket(BUCKET_NAME, 'us-east-1')
       console.log(`Bucket ${BUCKET_NAME} criado com sucesso`)
     }
   } catch (error) {
     console.error('Erro ao verificar/criar bucket:', error)
   }
 }
-
-// Chamar na inicialização
-ensureBucketExists()
 
 export interface UploadResult {
   key: string
@@ -57,7 +66,8 @@ export class MinIOService {
     
     try {
       // Upload do arquivo
-      await minioClient.putObject(
+      const client = getMinioClient()
+      await client.putObject(
         BUCKET_NAME, 
         key, 
         buffer, 
@@ -84,7 +94,8 @@ export class MinIOService {
    */
   static async getFileUrl(key: string, expiry: number = 24 * 60 * 60): Promise<string> {
     try {
-      return await minioClient.presignedGetObject(BUCKET_NAME, key, expiry)
+      const client = getMinioClient()
+      return await client.presignedGetObject(BUCKET_NAME, key, expiry)
     } catch (error) {
       console.error('Erro ao gerar URL:', error)
       throw new Error('Falha ao gerar URL do arquivo')
@@ -96,7 +107,8 @@ export class MinIOService {
    */
   static async getFileBuffer(key: string): Promise<Buffer> {
     try {
-      const stream = await minioClient.getObject(BUCKET_NAME, key)
+      const client = getMinioClient()
+      const stream = await client.getObject(BUCKET_NAME, key)
       const chunks: Buffer[] = []
       
       return new Promise((resolve, reject) => {
@@ -115,7 +127,8 @@ export class MinIOService {
    */
   static async deleteFile(key: string): Promise<void> {
     try {
-      await minioClient.removeObject(BUCKET_NAME, key)
+      const client = getMinioClient()
+      await client.removeObject(BUCKET_NAME, key)
     } catch (error) {
       console.error('Erro ao deletar arquivo:', error)
       throw new Error('Falha ao deletar arquivo')
@@ -127,7 +140,8 @@ export class MinIOService {
    */
   static async listFiles(prefix: string = ''): Promise<string[]> {
     try {
-      const objectsStream = minioClient.listObjects(BUCKET_NAME, prefix, true)
+      const client = getMinioClient()
+      const objectsStream = client.listObjects(BUCKET_NAME, prefix, true)
       const files: string[] = []
       
       return new Promise((resolve, reject) => {
@@ -148,7 +162,8 @@ export class MinIOService {
    */
   static async fileExists(key: string): Promise<boolean> {
     try {
-      await minioClient.statObject(BUCKET_NAME, key)
+      const client = getMinioClient()
+      await client.statObject(BUCKET_NAME, key)
       return true
     } catch (error) {
       return false
@@ -160,7 +175,8 @@ export class MinIOService {
    */
   static async getFileStats(key: string): Promise<any> {
     try {
-      return await minioClient.statObject(BUCKET_NAME, key)
+      const client = getMinioClient()
+      return await client.statObject(BUCKET_NAME, key)
     } catch (error) {
       console.error('Erro ao obter metadados:', error)
       throw new Error('Falha ao obter metadados do arquivo')
