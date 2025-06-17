@@ -121,12 +121,12 @@ export default function LoginPage() {
               </div>
 
               <div className="text-sm">
-                <a
-                  href="#"
+                <Link
+                  href="/auth/forgot-password"
                   className="font-medium text-primary-600 hover:text-primary-500 transition-colors"
                 >
                   Esqueceu a senha?
-                </a>
+                </Link>
               </div>
             </div>
 
