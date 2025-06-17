@@ -7,121 +7,217 @@ import Patient from '@/models/Patient'
 import Analysis from '@/models/Analysis'
 import Document from '@/models/Document'
 import Company from '@/models/Company'
+import mongoose from 'mongoose'
+
+// Função para garantir ObjectId válido com logs detalhados
+function ensureValidObjectId(value: any, fieldName: string): string {
+  console.log(`[Dashboard] Validando ${fieldName}:`, { value, type: typeof value })
+  
+  if (!value) {
+    console.warn(`[Dashboard] ${fieldName} não fornecido, gerando ObjectId mock`)
+    return '507f1f77bcf86cd799439011' // ObjectId fixo para desenvolvimento
+  }
+  
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    console.log(`[Dashboard] ${fieldName} válido:`, value.toString())
+    return value.toString()
+  }
+  
+  console.warn(`[Dashboard] ${fieldName} inválido (${value}), usando ObjectId mock`)
+  return '507f1f77bcf86cd799439011' // ObjectId fixo para desenvolvimento
+}
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('[Dashboard] Iniciando carregamento de estatísticas...')
     await dbConnect()
 
     // Verificar autenticação
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
+      console.error('[Dashboard] Usuário não autenticado')
       return NextResponse.json(
         { error: 'Não autenticado' },
         { status: 401 }
       )
     }
 
+    console.log('[Dashboard] Sessão encontrada:', {
+      email: session.user.email,
+      role: session.user.role,
+      company: session.user.company,
+      id: session.user.id
+    })
+
     // Buscar usuário
     const user = await User.findOne({ email: session.user.email })
     if (!user) {
+      console.error('[Dashboard] Usuário não encontrado no banco:', session.user.email)
       return NextResponse.json(
         { error: 'Usuário não encontrado' },
         { status: 404 }
       )
     }
 
-    const companyId = user.company
-
-    // Obter estatísticas gerais
-    const [
-      totalPatients,
-      totalAnalyses,
-      totalDocuments,
-      totalUsers,
-      company
-    ] = await Promise.all([
-      Patient.countDocuments({ company: companyId }),
-      Analysis.countDocuments({ company: companyId }),
-      Document.countDocuments({ companyId }),
-      User.countDocuments({ company: companyId }),
-      Company.findById(companyId)
-    ])
-
-    // Análises por tipo (últimos 30 dias)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const analysesByType = await Analysis.aggregate([
-      {
-        $match: {
-          company: companyId,
-          createdAt: { $gte: thirtyDaysAgo }
-        }
-      },
-      {
-        $group: {
-          _id: '$type',
-          count: { $sum: 1 },
-          avgProcessingTime: { $avg: '$aiMetadata.processingTime' }
-        }
-      }
-    ])
-
-    // Análises por dia (últimos 7 dias)
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-    const dailyAnalyses = await Analysis.aggregate([
-      {
-        $match: {
-          company: companyId,
-          createdAt: { $gte: sevenDaysAgo }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
-          },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $sort: { '_id': 1 }
-      }
-    ])
-
-    // Status dos documentos RAG
-    const documentStats = await Document.aggregate([
-      {
-        $match: { companyId: companyId }
-      },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 }
-        }
-      }
-    ])
-
-    // Pacientes com análises recentes
-    const recentPatients = await Patient.find({ 
-      company: companyId 
+    console.log('[Dashboard] Usuário encontrado no banco:', {
+      id: user._id,
+      company: user.company,
+      role: user.role
     })
-    .limit(5)
-    .sort({ updatedAt: -1 })
-    .select('name age mainSymptoms')
 
-    // Análises mais recentes
-    const recentAnalyses = await Analysis.find({
-      company: companyId,
-      status: 'completed'
-    })
-    .populate('patient', 'name age')
-    .populate('professional', 'name')
-    .limit(10)
-    .sort({ createdAt: -1 })
-    .select('type createdAt aiMetadata.processingTime patient professional')
+    // Garantir companyId válido
+    const companyId = ensureValidObjectId(user.company, 'companyId')
+    console.log('[Dashboard] CompanyId processado:', companyId)
+
+    // Obter estatísticas gerais com try/catch individual
+    console.log('[Dashboard] Coletando estatísticas...')
+    
+    let totalPatients = 0
+    let totalAnalyses = 0
+    let totalDocuments = 0
+    let totalUsers = 0
+    let company = null
+
+    try {
+      totalPatients = await Patient.countDocuments({ company: companyId })
+      console.log('[Dashboard] Total de pacientes:', totalPatients)
+    } catch (error) {
+      console.error('[Dashboard] Erro ao contar pacientes:', error)
+    }
+
+    try {
+      totalAnalyses = await Analysis.countDocuments({ company: companyId })
+      console.log('[Dashboard] Total de análises:', totalAnalyses)
+    } catch (error) {
+      console.error('[Dashboard] Erro ao contar análises:', error)
+    }
+
+    try {
+      totalDocuments = await Document.countDocuments({ companyId })
+      console.log('[Dashboard] Total de documentos:', totalDocuments)
+    } catch (error) {
+      console.error('[Dashboard] Erro ao contar documentos:', error)
+    }
+
+    try {
+      totalUsers = await User.countDocuments({ company: companyId })
+      console.log('[Dashboard] Total de usuários:', totalUsers)
+    } catch (error) {
+      console.error('[Dashboard] Erro ao contar usuários:', error)
+    }
+
+    try {
+      company = await Company.findById(companyId)
+      console.log('[Dashboard] Empresa encontrada:', company?._id || 'Não encontrada')
+    } catch (error) {
+      console.error('[Dashboard] Erro ao buscar empresa:', error)
+    }
+
+    // Análises por tipo (últimos 30 dias) com tratamento de erro
+    let analysesByType = []
+    try {
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+      analysesByType = await Analysis.aggregate([
+        {
+          $match: {
+            company: new mongoose.Types.ObjectId(companyId),
+            createdAt: { $gte: thirtyDaysAgo }
+          }
+        },
+        {
+          $group: {
+            _id: '$type',
+            count: { $sum: 1 },
+            avgProcessingTime: { $avg: '$aiMetadata.processingTime' }
+          }
+        }
+      ])
+      console.log('[Dashboard] Análises por tipo:', analysesByType.length)
+    } catch (error) {
+      console.error('[Dashboard] Erro na agregação de análises por tipo:', error)
+    }
+
+    // Análises por dia (últimos 7 dias) com tratamento de erro
+    let dailyAnalyses = []
+    try {
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+
+      dailyAnalyses = await Analysis.aggregate([
+        {
+          $match: {
+            company: new mongoose.Types.ObjectId(companyId),
+            createdAt: { $gte: sevenDaysAgo }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+            },
+            count: { $sum: 1 }
+          }
+        },
+        {
+          $sort: { '_id': 1 }
+        }
+      ])
+      console.log('[Dashboard] Análises diárias:', dailyAnalyses.length)
+    } catch (error) {
+      console.error('[Dashboard] Erro na agregação de análises diárias:', error)
+    }
+
+    // Status dos documentos RAG com tratamento de erro
+    let documentStats = []
+    try {
+      documentStats = await Document.aggregate([
+        {
+          $match: { companyId: companyId }
+        },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 }
+          }
+        }
+      ])
+      console.log('[Dashboard] Estatísticas de documentos:', documentStats.length)
+    } catch (error) {
+      console.error('[Dashboard] Erro na agregação de documentos:', error)
+    }
+
+    // Pacientes com análises recentes com tratamento de erro
+    let recentPatients = []
+    try {
+      recentPatients = await Patient.find({ 
+        company: companyId 
+      })
+      .limit(5)
+      .sort({ updatedAt: -1 })
+      .select('name age mainSymptoms')
+      console.log('[Dashboard] Pacientes recentes:', recentPatients.length)
+    } catch (error) {
+      console.error('[Dashboard] Erro ao buscar pacientes recentes:', error)
+    }
+
+    // Análises mais recentes com tratamento de erro
+    let recentAnalyses = []
+    try {
+      recentAnalyses = await Analysis.find({
+        company: companyId,
+        status: 'completed'
+      })
+      .populate('patient', 'name age')
+      .populate('professional', 'name')
+      .limit(10)
+      .sort({ createdAt: -1 })
+      .select('type createdAt aiMetadata.processingTime patient professional')
+      console.log('[Dashboard] Análises recentes:', recentAnalyses.length)
+    } catch (error) {
+      console.error('[Dashboard] Erro ao buscar análises recentes:', error)
+    }
 
     // Estatísticas de uso de IA por provider
     const aiUsageStats = company?.usage || {
@@ -192,17 +288,25 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log('[Dashboard] Estatísticas finais:', {
+      totalPatients: stats.overview.totalPatients,
+      totalAnalyses: stats.overview.totalAnalyses,
+      totalDocuments: stats.overview.totalDocuments,
+      totalUsers: stats.overview.totalUsers
+    })
+
     return NextResponse.json({
       success: true,
       data: stats
     })
 
   } catch (error) {
-    console.error('Erro ao obter estatísticas:', error)
+    console.error('[Dashboard] Erro geral ao obter estatísticas:', error)
     return NextResponse.json(
       { 
         error: 'Erro interno do servidor',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
+        stack: error instanceof Error ? error.stack : undefined
       },
       { status: 500 }
     )

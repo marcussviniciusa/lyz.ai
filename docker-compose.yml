@@ -1,8 +1,7 @@
 version: '3.8'
-
 services:
   lyz-ai:
-    image: seunome/lyz-ai:latest  # Substitua pelo seu usuário do Docker Hub
+    image: marcussviniciusa/lyz-ai:latest2  # Substitua pelo seu usuário do Docker Hub
     container_name: lyz-ai
     restart: unless-stopped
     environment:
@@ -12,63 +11,65 @@ services:
       - HOSTNAME=0.0.0.0
       
       # Configurações do MongoDB
-      - MONGODB_URI=mongodb://mongo:27017/lyz-ai  # Ajuste conforme sua configuração
+      - MONGODB_URI=mongodb://admin:Marcus1911Marcus@206.183.131.10:27017/lyz-ai?authSource=admin
       
       # Configurações do NextAuth
-      - NEXTAUTH_URL=https://lyz.seudominio.com  # Substitua pelo seu domínio
-      - NEXTAUTH_SECRET=seu-secret-super-seguro-aqui  # Gere um secret seguro
+      - NEXTAUTH_URL=https://lyz.ciclicidade.com
+      - NEXTAUTH_SECRET=AAw27DCqf9pVhkUs0aFBTl71OEIUxkVc0gwq34AgTYtrbTIZfUGYU1lYaUc=
       
       # Configurações da IA (OpenAI/Anthropic)
-      - OPENAI_API_KEY=sua-chave-openai-aqui
-      - ANTHROPIC_API_KEY=sua-chave-anthropic-aqui
+      #- OPENAI_API_KEY=sua-chave-openai-aqui
+      #- ANTHROPIC_API_KEY=sua-chave-anthropic-aqui
       
       # Configurações do MinIO
-      - MINIO_ENDPOINT=minio:9000  # Ajuste conforme sua configuração
-      - MINIO_ACCESS_KEY=sua-access-key-minio
-      - MINIO_SECRET_KEY=sua-secret-key-minio
+      - MINIO_ENDPOINT=s3.marcussviniciusa.cloud
+      - MINIO_PORT=443
+      - MINIO_ACCESS_KEY=7ymu5rlq1EsdYvCAmcFt
+      - MINIO_SECRET_KEY=hQbQ0SPBRyoHgi1qg45DYRKgbOPObLcNxmhTGw8B
+      - MINIO_USE_SSL=true
       - MINIO_BUCKET_NAME=lyz-ai-files
-      - MINIO_USE_SSL=false  # true se usar HTTPS
+
+      # Integração com Curseduca
+      - CURSEDUCA_API_URL=https://prof.curseduca.pro
+      - CURSEDUCA_API_KEY=11803f0a8de22323b86b1edadc7afcd204150919
       
       # Configurações do Google Vision (opcional)
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
+      #- GOOGLE_APPLICATION_CREDENTIALS=/app/google-credentials.json
       
     networks:
-      - traefik
-      - lyz-ai-network
+      - proxy  # Rede para comunicação com o Traefik
     
     labels:
       # Configurações do Traefik
       - "traefik.enable=true"
-      - "traefik.http.routers.lyz-ai.rule=Host(`lyz.seudominio.com`)"  # Substitua pelo seu domínio
+      - "traefik.http.routers.lyz-ai.rule=Host(`lyz.ciclicidade.com`)"  # Ajustado para seu domínio
       - "traefik.http.routers.lyz-ai.entrypoints=websecure"
       - "traefik.http.routers.lyz-ai.tls.certresolver=letsencrypt"
       - "traefik.http.services.lyz-ai.loadbalancer.server.port=3000"
       
       # Redirecionamento HTTP para HTTPS
-      - "traefik.http.routers.lyz-ai-http.rule=Host(`lyz.seudominio.com`)"
+      - "traefik.http.routers.lyz-ai-http.rule=Host(`lyz.ciclicidade.com`)"
       - "traefik.http.routers.lyz-ai-http.entrypoints=web"
       - "traefik.http.routers.lyz-ai-http.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       
     # Volumes para persistir dados se necessário
-    volumes:
+    # volumes:
       # Descomente se usar Google Vision
       # - ./google-credentials.json:/app/google-credentials.json:ro
       
       # Volume para uploads temporários (opcional)
       # - lyz-ai-uploads:/app/uploads
     
-    # Dependências (ajuste conforme sua configuração)
-    depends_on:
-      - mongo  # Se o MongoDB estiver no mesmo stack
-      - minio  # Se o MinIO estiver no mesmo stack
+    # Dependências (removidas pois usa serviços externos)
+    # depends_on:
+    #   - mongodb  
+    #   - minio
 
 networks:
-  traefik:
-    external: true  # Rede externa do Traefik
-  lyz-ai-network:
-    driver: bridge
+  proxy:  # Rede externa do Traefik
+    external: true
 
 # Volumes (descomente se necessário)
 # volumes:
-#   lyz-ai-uploads: 
+#   lyz-ai-uploads:
