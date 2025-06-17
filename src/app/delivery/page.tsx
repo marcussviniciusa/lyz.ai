@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import DashboardLayout from '@/components/DashboardLayout'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -166,19 +167,19 @@ export default function DeliveryPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <DashboardLayout>
         <div className="flex items-center justify-center min-h-[400px]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Carregando planos de entrega...</p>
           </div>
         </div>
-      </div>
+      </DashboardLayout>
     )
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <DashboardLayout>
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Entrega de Planos</h1>
@@ -337,6 +338,6 @@ export default function DeliveryPage() {
           })}
         </div>
       )}
-    </div>
+    </DashboardLayout>
   )
 } 
