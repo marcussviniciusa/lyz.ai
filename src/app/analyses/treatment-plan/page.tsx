@@ -294,7 +294,7 @@ export default function TreatmentPlanPage() {
       title: 'Saúde Hormonal',
       description: 'Equilibrio endócrino e regulação dos ciclos femininos',
       icon: '⚖️',
-      color: 'bg-pink-100 text-pink-800'
+                color: 'bg-primary-100 text-primary-800'
     },
     {
       title: 'Saúde Mental',

@@ -48,7 +48,7 @@ a {
 
 /* Estilos customizados para a plataforma */
 .gradient-bg {
-  background: linear-gradient(135deg, #ec4899 0%, #be185d 100%);
+  background: linear-gradient(135deg, #EEDFDB 0%, #B8A59D 100%);
 }
 
 .card-hover {
@@ -72,12 +72,12 @@ a {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #ec4899;
+  background: #EEDFDB;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #be185d;
+  background: #D4C4BE;
 }
 
 /* Animações personalizadas */
@@ -152,7 +152,7 @@ a {
 /* Estilos para loading */
 .spinner {
   border: 3px solid #f3f3f3;
-  border-top: 3px solid #ec4899;
+  border-top: 3px solid #EEDFDB;
   border-radius: 50%;
   width: 24px;
   height: 24px;

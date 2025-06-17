@@ -394,7 +394,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
 
               {/* Menstrual History */}
               {patient.menstrualHistory && (
-                <div className="bg-pink-50 rounded-lg p-4 border-l-4 border-pink-400">
+                <div className="bg-primary-50 rounded-lg p-4 border-l-4 border-primary-500">
                   <h3 className="text-lg font-medium text-gray-900 mb-3">🌸 História Menstrual</h3>
                   <dl className="space-y-2">
                     {patient.menstrualHistory.menarche > 0 && (

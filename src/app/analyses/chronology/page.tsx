@@ -335,7 +335,7 @@ function ChronologyAnalysisContent() {
     { value: 'hormonal', label: 'Hormonal', color: 'bg-purple-100 text-purple-800' },
     { value: 'emotional', label: 'Emocional', color: 'bg-blue-100 text-blue-800' },
     { value: 'lifestyle', label: 'Estilo de Vida', color: 'bg-green-100 text-green-800' },
-    { value: 'relationship', label: 'Relacionamento', color: 'bg-pink-100 text-pink-800' },
+          { value: 'relationship', label: 'Relacionamento', color: 'bg-primary-100 text-primary-800' },
     { value: 'professional', label: 'Profissional', color: 'bg-gray-100 text-gray-800' }
   ];
 
