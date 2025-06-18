@@ -44,9 +44,7 @@ const UserSchema = new Schema<IUser>({
   company: {
     type: Schema.Types.ObjectId,
     ref: 'Company',
-    required: function(this: IUser) {
-      return this.role !== 'superadmin'
-    }
+    required: false
   },
   specialization: {
     type: String,

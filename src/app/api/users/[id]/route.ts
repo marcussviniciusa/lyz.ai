@@ -62,7 +62,7 @@ export async function PUT(
     await dbConnect()
 
     const { id } = await params
-    const { name, email, role, password } = await request.json()
+    const { name, email, role, password, company } = await request.json()
 
     const user = await User.findById(id)
     
@@ -94,6 +94,11 @@ export async function PUT(
     if (role) user.role = role
     if (password) {
       user.password = await bcrypt.hash(password, 12)
+    }
+    
+    // Apenas superadmin pode alterar empresa
+    if (session.user.role === 'superadmin' && company !== undefined) {
+      user.company = company || null
     }
 
     await user.save()

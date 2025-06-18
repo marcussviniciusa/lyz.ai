@@ -19,12 +19,12 @@ export async function GET(req: NextRequest) {
     
     // Superadmin vê todos os usuários, admin vê apenas da sua empresa
     if (session.user.role === 'superadmin') {
-      users = await User.find({}).select('-password -__v').sort({ createdAt: -1 })
+      users = await User.find({}).select('-password -__v').populate('company', 'name').sort({ createdAt: -1 })
     } else {
       // Admin - filtrar apenas usuários da mesma empresa
       users = await User.find({ 
         company: session.user.company 
-      }).select('-password -__v').sort({ createdAt: -1 })
+      }).select('-password -__v').populate('company', 'name').sort({ createdAt: -1 })
     }
 
     return NextResponse.json({ users })
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
-    const { name, email, role, password } = await req.json()
+    const { name, email, role, password, company } = await req.json()
 
     // Validações
     if (!name || !email || !role || !password) {
@@ -77,13 +77,23 @@ export async function POST(req: NextRequest) {
     // Hash da senha
     const hashedPassword = await bcrypt.hash(password, 12)
 
+    // Determinar empresa do usuário
+    let userCompany
+    if (session.user.role === 'superadmin') {
+      // Superadmin pode especificar empresa ou deixar sem empresa
+      userCompany = company || null
+    } else {
+      // Admin só pode criar usuários na sua própria empresa
+      userCompany = session.user.company
+    }
+
     // Criar usuário
     const user = new User({
       name,
       email,
       password: hashedPassword,
       role,
-      company: session.user.company,
+      company: userCompany,
       active: true,
       createdBy: session.user.id
     })

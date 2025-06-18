@@ -11,15 +11,25 @@ interface User {
   email: string
   role: 'professional' | 'admin' | 'superadmin'
   active: boolean
-  company?: string
+  company?: {
+    _id: string
+    name: string
+  }
   createdAt: string
   lastLogin?: string
+}
+
+interface Company {
+  _id: string
+  name: string
+  status: string
 }
 
 export default function UsersPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [users, setUsers] = useState<User[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
@@ -31,7 +41,8 @@ export default function UsersPage() {
     name: '',
     email: '',
     role: 'professional' as 'professional' | 'admin' | 'superadmin',
-    password: ''
+    password: '',
+    company: ''
   })
 
   useEffect(() => {
@@ -48,6 +59,9 @@ export default function UsersPage() {
   useEffect(() => {
     if (session && ['admin', 'superadmin'].includes(session.user.role || '')) {
       fetchUsers()
+      if (session.user.role === 'superadmin') {
+        fetchCompanies()
+      }
     }
   }, [session])
 
@@ -65,6 +79,18 @@ export default function UsersPage() {
     }
   }
 
+  const fetchCompanies = async () => {
+    try {
+      const response = await fetch('/api/companies?status=approved')
+      if (response.ok) {
+        const data = await response.json()
+        setCompanies(data.companies || [])
+      }
+    } catch (error) {
+      console.error('Erro ao carregar empresas:', error)
+    }
+  }
+
   const createUser = async () => {
     try {
       const response = await fetch('/api/users', {
@@ -76,7 +102,7 @@ export default function UsersPage() {
       if (response.ok) {
         fetchUsers()
         setShowCreateModal(false)
-        setFormData({ name: '', email: '', role: 'professional', password: '' })
+        setFormData({ name: '', email: '', role: 'professional', password: '', company: '' })
         alert('Usuário criado com sucesso!')
       } else {
         const error = await response.json()
@@ -102,7 +128,7 @@ export default function UsersPage() {
         fetchUsers()
         setShowEditModal(false)
         setSelectedUser(null)
-        setFormData({ name: '', email: '', role: 'professional', password: '' })
+        setFormData({ name: '', email: '', role: 'professional', password: '', company: '' })
         alert('Usuário atualizado com sucesso!')
       } else {
         const error = await response.json()
@@ -183,7 +209,8 @@ export default function UsersPage() {
       name: user.name,
       email: user.email,
       role: user.role,
-      password: ''
+      password: '',
+      company: user.company?._id || ''
     })
     setShowEditModal(true)
   }
@@ -282,6 +309,11 @@ export default function UsersPage() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Função
                       </th>
+                      {session?.user.role === 'superadmin' && (
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Empresa
+                        </th>
+                      )}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
@@ -305,6 +337,11 @@ export default function UsersPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           {getRoleBadge(user.role)}
                         </td>
+                        {session?.user.role === 'superadmin' && (
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {user.company?.name || 'Sem empresa'}
+                          </td>
+                        )}
                         <td className="px-6 py-4 whitespace-nowrap">
                           {getStatusBadge(user.active)}
                         </td>
@@ -409,7 +446,13 @@ export default function UsersPage() {
                     </label>
                     <select
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                      onChange={(e) => {
+                        const newRole = e.target.value as any
+                        setFormData({ 
+                          ...formData, 
+                          role: newRole
+                        })
+                      }}
                       className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     >
                       <option value="professional">Profissional</option>
@@ -432,6 +475,27 @@ export default function UsersPage() {
                       placeholder="Digite uma senha temporária"
                     />
                   </div>
+
+                  {session?.user.role === 'superadmin' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Empresa {formData.role !== 'superadmin' && '*'}
+                      </label>
+                      <select
+                        value={formData.company}
+                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        required={formData.role !== 'superadmin'}
+                      >
+                        <option value="">
+                          {formData.role === 'superadmin' ? 'Nenhuma empresa (opcional)' : 'Selecione uma empresa'}
+                        </option>
+                        {companies.map((company) => (
+                          <option key={company._id} value={company._id}>{company.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-6">
@@ -503,7 +567,13 @@ export default function UsersPage() {
                     </label>
                     <select
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value as any })}
+                      onChange={(e) => {
+                        const newRole = e.target.value as any
+                        setFormData({ 
+                          ...formData, 
+                          role: newRole
+                        })
+                      }}
                       className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                     >
                       <option value="professional">Profissional</option>
@@ -526,6 +596,27 @@ export default function UsersPage() {
                       placeholder="Digite nova senha ou deixe em branco"
                     />
                   </div>
+
+                  {session?.user.role === 'superadmin' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Empresa {formData.role !== 'superadmin' && '*'}
+                      </label>
+                      <select
+                        value={formData.company}
+                        onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                        className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        required={formData.role !== 'superadmin'}
+                      >
+                        <option value="">
+                          {formData.role === 'superadmin' ? 'Nenhuma empresa (opcional)' : 'Selecione uma empresa'}
+                        </option>
+                        {companies.map((company) => (
+                          <option key={company._id} value={company._id}>{company.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-6">
