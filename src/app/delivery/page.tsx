@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
   FileText, 
-  Download, 
   Eye,
   Calendar,
   User,
@@ -38,12 +37,6 @@ interface DeliveryPlan {
     status: string
     createdAt: string
   }>
-  pdfFile: {
-    key: string
-    url: string
-    size: number
-    generatedAt: string
-  }
   title: string
   description?: string
   status: string
@@ -90,61 +83,6 @@ export default function DeliveryPage() {
 
   const handleViewPlan = (planId: string) => {
     router.push(`/delivery/plans/${planId}`)
-  }
-
-  const handleDownload = async (plan: DeliveryPlan, event: React.MouseEvent) => {
-    event.stopPropagation() // Evitar navegação quando clicar no botão
-    
-    try {
-      // Verificar se existe PDF salvo no MinIO
-      if (plan.pdfFile?.url) {
-        console.log('📄 Usando PDF existente do MinIO')
-        
-        // Usar a URL direta do MinIO
-        const link = document.createElement('a')
-        link.href = plan.pdfFile.url
-        link.download = `${plan.title.replace(/\s+/g, '-')}.pdf`
-        link.target = '_blank' // Abrir em nova aba para evitar problemas de CORS
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        
-        console.log('✅ Download do PDF existente iniciado')
-        return
-      }
-      
-      // Se não existe PDF, gerar um novo
-      console.log('🎯 PDF não existe, gerando novo...')
-      
-      const response = await fetch(`/api/delivery/plans/${plan._id}/pdf`, {
-        method: 'GET',
-      })
-      
-      if (!response.ok) {
-        throw new Error('Erro ao gerar PDF')
-      }
-      
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${plan.title.replace(/\s+/g, '-')}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      
-      console.log('✅ Download do PDF gerado iniciado')
-      
-      // Recarregar planos para atualizar com o novo PDF
-      setTimeout(() => {
-        loadPlans()
-      }, 1000)
-      
-    } catch (error) {
-      console.error('❌ Erro no download:', error)
-      alert('Erro ao fazer download do PDF')
-    }
   }
 
   const formatDate = (dateString: string) => {
@@ -287,16 +225,6 @@ export default function DeliveryPage() {
                             {statusInfo.label}
                           </Badge>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => handleDownload(plan, e)}
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                          </Button>
-                        </div>
                       </div>
 
                       {plan.description && (
@@ -325,7 +253,7 @@ export default function DeliveryPage() {
                           <div>
                             <p className="font-medium">{formatDate(plan.createdAt)}</p>
                             <p className="text-gray-600">
-                              {plan.analyses.length} análise(s) • {formatFileSize(plan.pdfFile.size)}
+                              {plan.analyses.length} análise(s)
                             </p>
                           </div>
                         </div>

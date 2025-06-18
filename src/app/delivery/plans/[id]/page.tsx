@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { 
-  Download, 
   ArrowLeft, 
   FileText, 
   User, 
@@ -49,12 +48,6 @@ interface DeliveryPlan {
       rawOutput: string
     }
   }>
-  pdfFile: {
-    key: string
-    url: string
-    size: number
-    generatedAt: string
-  }
   shareLink?: {
     token: string
     isPublic: boolean
@@ -302,7 +295,6 @@ export default function DeliveryPlanPage() {
   const router = useRouter()
   const [plan, setPlan] = useState<DeliveryPlan | null>(null)
   const [loading, setLoading] = useState(true)
-  const [downloading, setDownloading] = useState(false)
   const [downloadingPage, setDownloadingPage] = useState(false)
   const [isPrintMode, setIsPrintMode] = useState(false)
   
@@ -351,38 +343,6 @@ export default function DeliveryPlanPage() {
       console.error('Erro ao carregar plano:', error)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleDownload = async () => {
-    if (!plan) return
-    
-    setDownloading(true)
-    try {
-      const response = await fetch(`/api/delivery/plans/${plan._id}/pdf`)
-      
-      if (!response.ok) {
-        throw new Error('Erro ao gerar PDF')
-      }
-      
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.style.display = 'none'
-      a.href = url
-      a.download = `plano-${plan.patient.name.replace(/\s+/g, '-')}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      
-      // Recarregar dados do plano para atualizar informações do PDF
-      await loadPlan(plan._id)
-    } catch (error) {
-      console.error('Erro ao baixar PDF:', error)
-      alert('Erro ao gerar PDF. Tente novamente.')
-    } finally {
-      setDownloading(false)
     }
   }
 
@@ -776,19 +736,6 @@ export default function DeliveryPlanPage() {
               {statusInfo.label}
             </Badge>
             <Button 
-              onClick={handleDownload}
-              disabled={downloading}
-              variant="outline"
-              size="sm"
-            >
-              {downloading ? (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-              ) : (
-                <Download className="h-4 w-4 mr-2" />
-              )}
-              PDF Dados
-            </Button>
-            <Button 
               onClick={handleDownloadPage}
               disabled={downloadingPage}
               className="bg-blue-600 hover:bg-blue-700"
@@ -864,22 +811,6 @@ export default function DeliveryPlanPage() {
         </Card>
 
         {/* Informações do Arquivo */}
-        <Card className="card">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <FileText className="h-5 w-5 mr-2" />
-              Arquivo PDF
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <p className="text-sm text-gray-600">Tamanho: {formatFileSize(plan.pdfFile.size)}</p>
-              <p className="text-sm text-gray-600">
-                Gerado: {formatDate(plan.pdfFile.generatedAt)}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Card de Compartilhamento */}
