@@ -22,7 +22,9 @@ import {
   Shield,
   Globe,
   Calendar,
-  BarChart3
+  BarChart3,
+  FileText as FileTextIcon,
+  Type
 } from 'lucide-react'
 
 interface DeliveryPlan {
@@ -508,6 +510,47 @@ export default function DeliveryPlanPage() {
     }
   }
 
+  // Função para copiar texto em formato markdown
+  const copyAnalysisMarkdown = async (rawOutput: string, analysisType: string) => {
+    try {
+      const analysisTitle = analysisTypeLabels[analysisType] || analysisType
+      const content = `# ${analysisTitle}\n\n${rawOutput}`
+      await navigator.clipboard.writeText(content)
+      alert('Análise copiada em formato Markdown!')
+    } catch (error) {
+      console.error('Erro ao copiar:', error)
+      alert('Erro ao copiar análise')
+    }
+  }
+
+  // Função para copiar texto simples (sem formatação)
+  const copyAnalysisPlainText = async (rawOutput: string, analysisType: string) => {
+    try {
+      const analysisTitle = analysisTypeLabels[analysisType] || analysisType
+      
+      // Remover formatação markdown
+      let plainText = rawOutput
+        .replace(/#{1,6}\s+/g, '') // Headers
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+        .replace(/\*(.*?)\*/g, '$1') // Italic
+        .replace(/^\s*[-•]\s+/gm, '• ') // Lista com bullets
+        .replace(/^\s*\d+\.\s+/gm, (match, offset, string) => {
+          const lineStart = string.lastIndexOf('\n', offset) + 1
+          const lineNum = string.substring(lineStart, offset).length
+          return '• '
+        }) // Listas numeradas para bullets
+        .replace(/\n\s*\n/g, '\n\n') // Normalizar quebras de linha
+        .trim()
+
+      const content = `${analysisTitle}\n\n${plainText}`
+      await navigator.clipboard.writeText(content)
+      alert('Análise copiada como texto simples!')
+    } catch (error) {
+      console.error('Erro ao copiar:', error)
+      alert('Erro ao copiar análise')
+    }
+  }
+
   // Carregar status do compartilhamento quando o plano for carregado
   useEffect(() => {
     if (plan && !isPrintMode) {
@@ -949,6 +992,30 @@ export default function DeliveryPlanPage() {
                       {analysisTypeLabels[analysis.type] || analysis.type}
                     </h3>
                     <div className="flex items-center space-x-3">
+                      {!isPrintMode && analysis.result?.rawOutput && (
+                        <>
+                          <Button
+                            onClick={() => copyAnalysisMarkdown(analysis.result!.rawOutput, analysis.type)}
+                            size="sm"
+                            variant="outline"
+                            className="text-xs bg-white border-gray-300 hover:bg-gray-50"
+                            title="Copiar em formato Markdown"
+                          >
+                            <FileTextIcon className="h-3 w-3 mr-1" />
+                            Markdown
+                          </Button>
+                          <Button
+                            onClick={() => copyAnalysisPlainText(analysis.result!.rawOutput, analysis.type)}
+                            size="sm"
+                            variant="outline"
+                            className="text-xs bg-white border-gray-300 hover:bg-gray-50"
+                            title="Copiar como texto simples"
+                          >
+                            <Type className="h-3 w-3 mr-1" />
+                            Texto
+                          </Button>
+                        </>
+                      )}
                       <Badge 
                         variant={analysis.status === 'completed' ? 'default' : 'secondary'}
                         className="text-xs"
