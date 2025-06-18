@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeftIcon, UserIcon, CalendarIcon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, AlertCircleIcon } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { ArrowLeftIcon, UserIcon, CalendarIcon, ClockIcon, AlertTriangleIcon, CheckCircleIcon, AlertCircleIcon, EditIcon, SaveIcon, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import DashboardLayout from '@/components/DashboardLayout'
@@ -123,6 +124,9 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ id: s
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedContent, setEditedContent] = useState('')
+  const [saving, setSaving] = useState(false)
   const router = useRouter()
 
   const fetchAnalysis = useCallback(async () => {
@@ -145,6 +149,53 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     fetchAnalysis()
   }, [fetchAnalysis])
+
+  const handleStartEdit = () => {
+    if (analysis?.result?.rawOutput) {
+      setEditedContent(analysis.result.rawOutput)
+      setIsEditing(true)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setEditedContent('')
+  }
+
+  const handleSaveEdit = async () => {
+    if (!analysis || !editedContent.trim()) return
+    
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/analyses/${analysis._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          result: {
+            ...analysis.result,
+            rawOutput: editedContent.trim()
+          }
+        })
+      })
+
+      if (response.ok) {
+        const updatedAnalysis = await response.json()
+        setAnalysis(updatedAnalysis)
+        setIsEditing(false)
+        setEditedContent('')
+        alert('Análise atualizada com sucesso!')
+      } else {
+        throw new Error('Erro ao salvar alterações')
+      }
+    } catch (error) {
+      console.error('Erro ao salvar:', error)
+      alert('Erro ao salvar alterações. Tente novamente.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const getAnalysisTypeLabel = (type: string) => {
     const types: { [key: string]: string } = {
@@ -504,30 +555,80 @@ export default function AnalysisDetailPage({ params }: { params: Promise<{ id: s
         {analysis.result && (
           <Card>
             <CardHeader>
-              <CardTitle>Resultado da Análise</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Resultado da Análise</CardTitle>
+                {analysis.result.rawOutput && !isEditing && (
+                  <Button
+                    onClick={handleStartEdit}
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                  >
+                    <EditIcon className="h-4 w-4 mr-2" />
+                    Editar
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
-              {analysis.result.rawOutput ? (
-                analysis.type === 'laboratory' ? (
-                  renderLaboratoryResults(analysis.result.rawOutput)
-                ) : analysis.type === 'tcm' || analysis.type === 'chronology' || analysis.type === 'ifm' || analysis.type === 'treatmentPlan' || analysis.type === 'treatment' ? (
-                  <div 
-                    className="prose prose-gray max-w-none"
-                    dangerouslySetInnerHTML={{ 
-                      __html: renderMarkdown(analysis.result.rawOutput) 
-                    }}
+              {isEditing ? (
+                <div className="space-y-4">
+                  <Textarea
+                    value={editedContent}
+                    onChange={(e) => setEditedContent(e.target.value)}
+                    placeholder="Digite o conteúdo da análise..."
+                    className="min-h-[400px] font-mono text-sm"
                   />
-                ) : (
-                  <div className="prose max-w-none">
-                    <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border">
-                      {analysis.result.rawOutput}
-                    </pre>
+                  <div className="flex items-center justify-end space-x-2">
+                    <Button
+                      onClick={handleCancelEdit}
+                      variant="outline"
+                      size="sm"
+                      disabled={saving}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSaveEdit}
+                      size="sm"
+                      disabled={saving || !editedContent.trim()}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      {saving ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      ) : (
+                        <SaveIcon className="h-4 w-4 mr-2" />
+                      )}
+                      {saving ? 'Salvando...' : 'Salvar'}
+                    </Button>
                   </div>
-                )
+                </div>
               ) : (
-                <p className="text-gray-500 text-sm">
-                  Análise ainda não processada
-                </p>
+                <>
+                  {analysis.result.rawOutput ? (
+                    analysis.type === 'laboratory' ? (
+                      renderLaboratoryResults(analysis.result.rawOutput)
+                    ) : analysis.type === 'tcm' || analysis.type === 'chronology' || analysis.type === 'ifm' || analysis.type === 'treatmentPlan' || analysis.type === 'treatment' ? (
+                      <div 
+                        className="prose prose-gray max-w-none"
+                        dangerouslySetInnerHTML={{ 
+                          __html: renderMarkdown(analysis.result.rawOutput) 
+                        }}
+                      />
+                    ) : (
+                      <div className="prose max-w-none">
+                        <pre className="whitespace-pre-wrap text-sm bg-gray-50 p-4 rounded border">
+                          {analysis.result.rawOutput}
+                        </pre>
+                      </div>
+                    )
+                  ) : (
+                    <p className="text-gray-500 text-sm">
+                      Análise ainda não processada
+                    </p>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>

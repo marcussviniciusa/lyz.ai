@@ -54,35 +54,54 @@ export async function GET(
 
     console.log('📄 Gerando novo PDF da página renderizada...')
 
-    // Configurar Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding'
-      ]
-    })
+    // Configurar Puppeteer com timeouts aumentados
+    let browser
+    let page
     
-    const page = await browser.newPage()
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        protocolTimeout: 300000, // 5 minutos
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-images'
+        ]
+      })
+      
+      page = await browser.newPage()
+    } catch (error) {
+      console.error('❌ Erro ao inicializar Puppeteer:', error)
+      if (browser) await browser.close()
+      return Response.json(
+        { 
+          error: 'Erro ao inicializar navegador',
+          details: 'Falha ao inicializar o sistema de geração de PDF. Tente novamente.'
+        },
+        { status: 500 }
+      )
+    }
     
-    // Configurar viewport maior para capturar mais conteúdo
+    // Configurar viewport otimizado para PDF
     await page.setViewport({ 
-      width: 1400, 
-      height: 3000, // Altura muito maior
-      deviceScaleFactor: 1.5 
+      width: 1200, 
+      height: 1600,
+      deviceScaleFactor: 1 
     })
 
-    // Configurar timeouts maiores
-    page.setDefaultTimeout(120000) // 2 minutos
+    // Configurar timeouts
+    page.setDefaultTimeout(120000)
     page.setDefaultNavigationTimeout(120000)
 
     // URL da página
@@ -92,7 +111,7 @@ export async function GET(
     console.log('🌐 Navegando para:', pageUrl)
     
     try {
-      // Navegar para a página com timeout maior
+      // Navegar para a página
       await page.goto(pageUrl, {
         waitUntil: 'networkidle0',
         timeout: 120000
@@ -103,24 +122,9 @@ export async function GET(
       // Aguardar carregamento inicial
       await new Promise(resolve => setTimeout(resolve, 5000))
       
-      // Verificar se a página carregou corretamente
-      const title = await page.title()
-      console.log('📄 Título da página:', title)
-      
       // Aguardar elemento principal estar pronto
       await page.waitForSelector('[data-pdf-ready="true"]', { timeout: 60000 })
       console.log('✅ Elemento data-pdf-ready encontrado')
-      
-      // Aguardar especificamente pelas seções de análise
-      await page.waitForSelector('.analysis-section', { timeout: 60000 })
-      console.log('✅ Seções de análise encontradas')
-      
-      // Aguardar pelo conteúdo markdown ser renderizado
-      await page.waitForSelector('.markdown-content', { timeout: 60000 })
-      console.log('✅ Conteúdo markdown encontrado')
-      
-      // Aguardar um tempo adicional para garantir renderização completa
-      await new Promise(resolve => setTimeout(resolve, 15000)) // 15 segundos
       
     } catch (navigationError) {
       console.error('❌ Erro na navegação:', navigationError)
@@ -135,110 +139,303 @@ export async function GET(
       )
     }
     
-    console.log('📄 Preparando para gerar PDF da página...')
+    console.log('📄 Aplicando estilos de impressão...')
 
-    // Debug: Verificar conteúdo inicial
-    const initialContent = await page.evaluate(() => {
+    // Primeiro, vamos verificar e ajustar o conteúdo da página
+    const contentInfo = await page.evaluate(() => {
+      // Aguardar que todo o conteúdo markdown seja renderizado
+      const markdownElements = document.querySelectorAll('.markdown-content')
+      const analysisElements = document.querySelectorAll('.analysis-section')
+      
+      // Forçar exibição de todo conteúdo
+      const hiddenElements = document.querySelectorAll('.hidden, [style*="display: none"], [style*="display:none"]')
+      hiddenElements.forEach(el => {
+        const element = el as HTMLElement
+        if (!element.classList.contains('no-print')) {
+          element.style.display = 'block'
+          element.style.visibility = 'visible'
+        }
+      })
+      
+      // Remover limitações de altura
+      document.body.style.height = 'auto'
+      document.body.style.minHeight = 'auto'
+      document.body.style.maxHeight = 'none'
+      document.body.style.overflow = 'visible'
+      
+      // Ajustar container principal
+      const mainContainer = document.querySelector('[data-pdf-ready]') as HTMLElement
+      if (mainContainer) {
+        mainContainer.style.height = 'auto'
+        mainContainer.style.minHeight = 'auto'
+        mainContainer.style.maxHeight = 'none'
+      }
+      
       return {
-        title: document.title,
-        bodyText: document.body?.textContent?.substring(0, 200) || 'Sem conteúdo',
-        hasDataPdfReady: !!document.querySelector('[data-pdf-ready]'),
-        analysisCount: document.querySelectorAll('.analysis-section').length,
-        styleCount: document.querySelectorAll('style').length,
-        scriptCount: document.querySelectorAll('script').length
+        totalHeight: Math.max(document.body.scrollHeight, document.body.offsetHeight),
+        contentLength: document.body.textContent?.length || 0,
+        markdownCount: markdownElements.length,
+        analysisCount: analysisElements.length
       }
     })
-    console.log('🔍 Conteúdo inicial da página:', initialContent)
+    
+    console.log('📊 Informações do conteúdo:', contentInfo)
 
-    // Limpar a página e preparar para captura de PDF
-    await page.evaluate(() => {
-      console.log('🧹 Iniciando limpeza da página...')
-      
-      // Remover todos os elementos <style> e <script>
-      const styleTags = document.querySelectorAll('style, script, link[rel="stylesheet"]')
-      console.log(`🗑️ Removendo ${styleTags.length} elementos de estilo/script`)
-      styleTags.forEach(tag => tag.remove())
-
-      // Encontrar container principal
-      const container = document.querySelector('[data-pdf-ready]')
-      console.log('📦 Container encontrado:', !!container)
-      
-      if (!container) {
-        console.log('❌ Container [data-pdf-ready] não encontrado!')
-        return
-      }
-
-      // Extrair dados essenciais
-      const title = container.querySelector('h1')?.textContent || 'Plano Integrado'
-      const analyses = Array.from(container.querySelectorAll('.analysis-section'))
-      
-      console.log(`📊 Dados extraídos: título="${title}", análises=${analyses.length}`)
-
-      // Criar estrutura limpa
-      const cleanHTML = `
-        <div style="padding: 20px; font-family: 'Times New Roman', serif; font-size: 12px; line-height: 1.5; color: black; background: white;">
-          <h1 style="font-size: 18px; font-weight: bold; margin-bottom: 20px; text-align: center; color: black;">
-            ${title}
-          </h1>
-          ${analyses.map((analysis, index) => {
-            const analysisTitle = analysis.querySelector('h3')?.textContent || `Análise ${index + 1}`
-            const markdownContent = analysis.querySelector('.markdown-content')
-            const content = markdownContent ? markdownContent.innerHTML : 'Conteúdo não encontrado'
-            
-            return `
-              <div style="margin-bottom: 30px; border: 1px solid #ccc; padding: 15px; background: white;">
-                <h2 style="font-size: 16px; font-weight: bold; margin-bottom: 15px; color: black;">
-                  ${index + 1}. ${analysisTitle}
-                </h2>
-                <div style="color: black; background: white;">
-                  ${content}
-                </div>
-              </div>
-            `
-          }).join('')}
-        </div>
+    // Aplicar estilos otimizados para capturar todo o conteúdo
+    await page.addStyleTag({
+      content: `
+        @page {
+          size: A4;
+          margin: 20mm 15mm;
+        }
+        
+        @media print, screen {
+          * {
+            box-shadow: none !important;
+            text-shadow: none !important;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+          
+          body {
+            background: white !important;
+            color: black !important;
+            font-family: 'Times New Roman', serif !important;
+            font-size: 12px !important;
+            line-height: 1.6 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
+          
+          .container, .max-w-4xl, .mx-auto, [data-pdf-ready] {
+            max-width: 100% !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 20px !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+          }
+          
+          /* Título principal */
+          h1 { 
+            font-size: 24px !important; 
+            font-weight: bold !important;
+            margin: 0 0 20px 0 !important; 
+            text-align: center !important;
+            color: #1a365d !important;
+            page-break-after: avoid !important;
+            border-bottom: 2px solid #e2e8f0 !important;
+            padding-bottom: 10px !important;
+          }
+          
+          /* Subtítulos principais */
+          h2 { 
+            font-size: 18px !important; 
+            font-weight: bold !important;
+            margin: 25px 0 15px 0 !important; 
+            color: #2d3748 !important;
+            page-break-after: avoid !important;
+            border-left: 4px solid #4299e1 !important;
+            padding-left: 10px !important;
+          }
+          
+          /* Subtítulos secundários */
+          h3 { 
+            font-size: 16px !important; 
+            font-weight: bold !important;
+            margin: 20px 0 12px 0 !important; 
+            color: #2d3748 !important;
+            page-break-after: avoid !important;
+          }
+          
+          /* Subtítulos terciários */
+          h4, h5, h6 { 
+            font-size: 14px !important; 
+            font-weight: bold !important;
+            margin: 15px 0 10px 0 !important; 
+            color: #4a5568 !important;
+            page-break-after: avoid !important;
+          }
+          
+          /* Parágrafos */
+          p { 
+            margin: 10px 0 !important; 
+            text-align: justify !important;
+            orphans: 2 !important;
+            widows: 2 !important;
+            text-indent: 0 !important;
+          }
+          
+          /* Listas */
+          ul, ol { 
+            margin: 12px 0 12px 25px !important; 
+            padding-left: 0 !important;
+          }
+          
+          li { 
+            margin: 8px 0 !important; 
+            orphans: 2 !important;
+            widows: 2 !important;
+            line-height: 1.5 !important;
+          }
+          
+          /* Cards e containers */
+          .card, .Card, .border, .bg-white {
+            border: 1px solid #e2e8f0 !important;
+            margin-bottom: 20px !important;
+            padding: 15px !important;
+            background: white !important;
+            page-break-inside: auto !important;
+            border-radius: 0 !important;
+          }
+          
+          /* Seções de análise */
+          .analysis-section {
+            margin-bottom: 25px !important;
+            page-break-inside: auto !important;
+            border-bottom: 1px solid #f1f5f9 !important;
+            padding-bottom: 15px !important;
+          }
+          
+          /* Conteúdo markdown */
+          .markdown-content {
+            color: black !important;
+            page-break-inside: auto !important;
+          }
+          
+          .markdown-content > * {
+            page-break-inside: auto !important;
+          }
+          
+          /* Informações do cabeçalho do plano */
+          .plan-header {
+            text-align: center !important;
+            margin-bottom: 30px !important;
+            padding: 20px !important;
+            background: #f8fafc !important;
+            border: 1px solid #e2e8f0 !important;
+          }
+          
+          /* Informações de paciente e profissional */
+          .patient-info, .professional-info {
+            margin: 15px 0 !important;
+            padding: 10px !important;
+            background: #f7fafc !important;
+            border-left: 3px solid #4299e1 !important;
+          }
+          
+          /* Seções numeradas */
+          .numbered-section {
+            margin: 20px 0 !important;
+            padding: 15px !important;
+            background: #fafafa !important;
+            border: 1px solid #e8e8e8 !important;
+          }
+          
+          /* Status de análise */
+          .analysis-status {
+            display: inline-block !important;
+            padding: 4px 8px !important;
+            background: #c6f6d5 !important;
+            color: #22543d !important;
+            border-radius: 0 !important;
+            font-size: 10px !important;
+            font-weight: bold !important;
+          }
+          
+          /* Data e hora */
+          .datetime {
+            font-size: 11px !important;
+            color: #718096 !important;
+            font-style: italic !important;
+          }
+          
+          /* Remover elementos desnecessários */
+          button, .button, [role="button"], .no-print {
+            display: none !important;
+          }
+          
+          /* Forçar visibilidade */
+          .hidden {
+            display: block !important;
+            visibility: visible !important;
+          }
+          
+          /* Espaçamentos consistentes */
+          .space-y-4 > *, .space-y-2 > *, .space-y-6 > * {
+            margin-bottom: 15px !important;
+            display: block !important;
+          }
+          
+          /* Remover flexbox que pode causar problemas */
+          .flex {
+            display: block !important;
+          }
+          
+          .grid {
+            display: block !important;
+          }
+          
+          /* Quebras de página estratégicas */
+          .major-section {
+            page-break-before: auto !important;
+          }
+          
+          /* Melhorar contraste para impressão */
+          strong, b {
+            font-weight: bold !important;
+            color: #1a202c !important;
+          }
+          
+          em, i {
+            font-style: italic !important;
+          }
+          
+          /* Tabelas (se existirem) */
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 15px 0 !important;
+          }
+          
+          th, td {
+            border: 1px solid #e2e8f0 !important;
+            padding: 8px !important;
+            text-align: left !important;
+          }
+          
+          th {
+            background: #f7fafc !important;
+            font-weight: bold !important;
+          }
+        }
       `
-
-      // Substituir conteúdo da página
-      document.body.innerHTML = cleanHTML
-      console.log('✅ Página limpa e reestruturada')
     })
 
-    // Aguardar estabilização após limpeza
-    console.log('⏳ Aguardando estabilização...')
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    // Aguardar estabilização e renderização completa
+    await new Promise(resolve => setTimeout(resolve, 5000))
 
-    // Debug: Verificar conteúdo após limpeza
-    const cleanedContent = await page.evaluate(() => {
-      return {
-        bodyText: document.body?.textContent?.substring(0, 500) || 'Sem conteúdo',
-        bodyHTML: document.body?.innerHTML?.substring(0, 1000) || 'Sem HTML',
-        height: document.body?.scrollHeight || 0
-      }
+    // Verificar altura final após aplicação dos estilos
+    const finalHeight = await page.evaluate(() => {
+      return Math.max(
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.clientHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+      )
     })
-    console.log('🔍 Conteúdo após limpeza:', {
-      textLength: cleanedContent.bodyText.length,
-      htmlLength: cleanedContent.bodyHTML.length,
-      height: cleanedContent.height,
-      preview: cleanedContent.bodyText
-    })
+    
+    console.log('📏 Altura final da página:', finalHeight, 'px')
 
-    // Obter métricas do conteúdo limpo
-    const contentMetrics = await page.evaluate(() => {
-      const body = document.body
-      const height = Math.max(body.scrollHeight, body.offsetHeight)
-      const textContent = body.textContent || ''
-      
-      return {
-        contentHeight: height,
-        totalTextLength: textContent.length,
-        estimatedPages: Math.ceil(height / 842)
-      }
-    })
+    console.log('📄 Gerando PDF...')
 
-    console.log('📏 Métricas do conteúdo limpo:', contentMetrics)
-
-    // Gerar PDF com configurações simples
+    // Gerar PDF com altura dinâmica baseada no conteúdo
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -250,28 +447,29 @@ export async function GET(
       },
       displayHeaderFooter: true,
       headerTemplate: `
-        <div style="font-size: 9px; width: 100%; text-align: center; color: #666;">
+        <div style="font-size: 9px; width: 100%; text-align: center; color: #666; padding: 5mm 0;">
           <span>Lyz.ai - Sistema de Análises Médicas</span>
         </div>
       `,
       footerTemplate: `
-        <div style="font-size: 9px; width: 100%; text-align: center; color: #666;">
+        <div style="font-size: 9px; width: 100%; text-align: center; color: #666; padding: 5mm 0;">
           <span>Página <span class="pageNumber"></span> de <span class="totalPages"></span> - Gerado em ${new Date().toLocaleDateString('pt-BR')}</span>
         </div>
       `,
       timeout: 120000,
-      preferCSSPageSize: false
+      preferCSSPageSize: true,
+      omitBackground: false
     })
     
     await browser.close()
     
-    console.log('✅ PDF da página gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes')
+    console.log('✅ PDF gerado com sucesso, tamanho:', pdfBuffer.length, 'bytes')
 
-    // Salvar PDF da página no MinIO
+    // Salvar PDF no MinIO
     try {
       const fileName = `${crypto.randomUUID()}.pdf`
       
-      console.log('💾 Salvando PDF da página no MinIO...')
+      console.log('💾 Salvando PDF no MinIO...')
       const key = `delivery-plans-pages/${fileName}`
       const uploadResult = await MinIOService.uploadFile(
         Buffer.from(pdfBuffer),
@@ -282,9 +480,9 @@ export async function GET(
         }
       )
 
-      console.log('✅ PDF da página salvo no MinIO:', key)
+      console.log('✅ PDF salvo no MinIO:', key)
 
-      // Atualizar plano com informações do arquivo da página (campo adicional)
+      // Atualizar plano com informações do arquivo
       const now = new Date()
       await DeliveryPlan.findByIdAndUpdate(planId, {
         $set: {
@@ -298,7 +496,7 @@ export async function GET(
         }
       })
 
-      console.log('✅ Plano atualizado com informações do PDF da página')
+      console.log('✅ Plano atualizado com informações do PDF')
 
       // Retornar o PDF diretamente para download
       return new Response(pdfBuffer, {
@@ -310,23 +508,23 @@ export async function GET(
       })
 
     } catch (minioError) {
-      console.error('❌ Erro ao salvar PDF da página no MinIO:', minioError)
+      console.error('❌ Erro ao salvar PDF no MinIO:', minioError)
       
       // Se falhar no MinIO, ainda retornar o PDF gerado
       return new Response(pdfBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="plano-pagina-${plan.patient.name.replace(/\s+/g, '-')}.pdf"`,
+          'Content-Disposition': `attachment; filename="plano-${plan.patient.name.replace(/\s+/g, '-')}.pdf"`,
           'Content-Length': pdfBuffer.length.toString()
         }
       })
     }
     
   } catch (error) {
-    console.error('❌ Erro ao gerar PDF da página:', error)
+    console.error('❌ Erro ao gerar PDF:', error)
     return Response.json(
       { 
-        error: 'Erro interno ao gerar PDF da página',
+        error: 'Erro interno ao gerar PDF',
         details: error instanceof Error ? error.message : 'Erro desconhecido'
       },
       { status: 500 }
