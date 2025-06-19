@@ -35,7 +35,11 @@ export async function GET(request: Request) {
 
     const plans = await DeliveryPlan.find(query)
       .populate('patient', 'name email phone')
-      .populate('professional', 'name email')
+      .populate({
+        path: 'professional',
+        select: 'name email',
+        model: 'User'
+      })
       .populate('company', 'name')
       .populate('analyses', 'type status createdAt')
       .sort({ createdAt: -1 })

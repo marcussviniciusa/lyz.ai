@@ -22,11 +22,11 @@ interface DeliveryPlan {
     email: string
     phone?: string
   }
-  professional: {
+  professional?: {
     _id: string
     name: string
     email: string
-  }
+  } | null
   company?: {
     _id: string
     name: string
@@ -243,7 +243,9 @@ export default function DeliveryPage() {
                         <div className="flex items-center space-x-2">
                           <Building className="h-4 w-4 text-gray-400" />
                           <div>
-                            <p className="font-medium">{plan.professional.name}</p>
+                            <p className="font-medium">
+                              {plan.professional?.name || 'Profissional não definido'}
+                            </p>
                             <p className="text-gray-600">Profissional</p>
                           </div>
                         </div>

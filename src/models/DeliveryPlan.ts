@@ -3,7 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose'
 export interface IDeliveryPlan extends Document {
   _id: mongoose.Types.ObjectId
   patient: mongoose.Types.ObjectId
-  professional: mongoose.Types.ObjectId
+  professional?: mongoose.Types.ObjectId | null
   company: mongoose.Types.ObjectId
   
   // Análises incluídas no plano
@@ -69,7 +69,7 @@ const DeliveryPlanSchema = new Schema<IDeliveryPlan>({
   professional: {
     type: Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false
   },
   company: {
     type: Schema.Types.ObjectId,

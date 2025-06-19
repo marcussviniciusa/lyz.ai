@@ -59,7 +59,8 @@ export async function GET(
     let page
     
     try {
-      browser = await puppeteer.launch({
+      // Configuração do Puppeteer para produção com Chrome
+      const launchConfig: any = {
         headless: true,
         protocolTimeout: 300000, // 5 minutos
         args: [
@@ -76,9 +77,65 @@ export async function GET(
           '--disable-renderer-backgrounding',
           '--disable-extensions',
           '--disable-plugins',
-          '--disable-images'
+          '--disable-images',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-software-rasterizer',
+          '--disable-background-networking',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--metrics-recording-only',
+          '--mute-audio',
+          '--no-crash-upload',
+          '--no-default-browser-check',
+          '--no-pings',
+          '--disable-breakpad',
+          '--disable-crash-reporter',
+          '--disable-hang-monitor',
+          '--disable-prompt-on-repost',
+          '--disable-client-side-phishing-detection',
+          '--disable-component-update',
+          '--disable-domain-reliability',
+          '--disable-ipc-flooding-protection',
+          '--enable-logging=stderr',
+          '--log-level=3',
+          '--user-data-dir=/tmp/chrome-user-data',
+          '--data-path=/tmp/chrome-data',
+          '--disk-cache-dir=/tmp/chrome-cache',
+          '--homedir=/tmp'
         ]
-      })
+      }
+      
+      // Usar Chrome do sistema se disponível (Docker)
+      if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+        launchConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
+        console.log('🔍 Usando Chrome do sistema:', process.env.PUPPETEER_EXECUTABLE_PATH)
+      } else {
+        // Fallback para desenvolvimento local - tentar encontrar Chrome
+        const possibleExecutables = [
+          '/usr/bin/google-chrome-stable',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          '/snap/bin/chromium'
+        ]
+        
+        for (const path of possibleExecutables) {
+          try {
+            const fs = require('fs')
+            if (fs.existsSync(path)) {
+              launchConfig.executablePath = path
+              console.log('🔍 Chrome encontrado em:', path)
+              break
+            }
+          } catch (e) {
+            // Continua para próximo path
+          }
+        }
+      }
+      
+      browser = await puppeteer.launch(launchConfig)
       
       page = await browser.newPage()
     } catch (error) {
@@ -275,6 +332,7 @@ export async function GET(
           ul, ol { 
             margin: 12px 0 12px 25px !important; 
             padding-left: 0 !important;
+            list-style: none !important; /* Remove bullets automáticos */
           }
           
           li { 
@@ -282,6 +340,27 @@ export async function GET(
             orphans: 2 !important;
             widows: 2 !important;
             line-height: 1.5 !important;
+            list-style: none !important; /* Remove bullets automáticos */
+            position: relative !important;
+          }
+          
+          /* Remove todos os bullets automáticos do CSS */
+          .markdown-content ul {
+            list-style-type: none !important;
+            list-style: none !important;
+          }
+          
+          .markdown-content li {
+            list-style-type: none !important;
+            list-style: none !important;
+          }
+          
+          .markdown-content li::before {
+            content: none !important;
+          }
+          
+          .markdown-content li::marker {
+            content: none !important;
           }
           
           /* Cards e containers */

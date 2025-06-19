@@ -34,11 +34,11 @@ interface DeliveryPlan {
     email: string
     phone?: string
   }
-  professional: {
+  professional?: {
     _id: string
     name: string
     email: string
-  }
+  } | null
   analyses: Array<{
     _id: string
     type: string
@@ -118,7 +118,7 @@ function renderMarkdown(text: string): string {
         const formattedContent = content
           .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
           .replace(/\*(.*?)\*/g, '<em class="italic text-gray-600">$1</em>')
-        processedLines.push(`<div class="ml-4 mb-2 flex items-start"><span class="text-blue-600 mr-3 mt-1 flex-shrink-0">•</span><div class="text-gray-700 leading-relaxed">${formattedContent}</div></div>`)
+        processedLines.push(`<div class="ml-4 mb-2 flex items-start"><div class="text-gray-700 leading-relaxed"><span class="text-blue-600 mr-2">•</span>${formattedContent}</div></div>`)
       }
       // Listas numeradas
       else if (/^\d+\.\s/.test(line)) {
@@ -804,8 +804,14 @@ export default function DeliveryPlanPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
-              <p className="font-medium text-gray-900">{plan.professional.name}</p>
-              <p className="text-sm text-gray-600">{plan.professional.email}</p>
+              {plan.professional ? (
+                <>
+                  <p className="font-medium text-gray-900">{plan.professional.name}</p>
+                  <p className="text-sm text-gray-600">{plan.professional.email}</p>
+                </>
+              ) : (
+                <p className="text-sm text-gray-500 italic">Informações do profissional não disponíveis</p>
+              )}
             </div>
           </CardContent>
         </Card>

@@ -1,10 +1,40 @@
-# Use a imagem oficial do Node.js como base
-FROM node:18-alpine AS base
+# Use uma imagem baseada em Debian que suporta Chrome
+FROM node:18-bookworm-slim AS base
+
+# Instalar dependências do sistema necessárias para Chrome e Puppeteer
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    ca-certificates \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libwayland-client0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Instalar Google Chrome
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
 
 # Instalar dependências apenas quando necessário
 FROM base AS deps
-# Verificar https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine para entender por que libc6-compat pode ser necessário.
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Instalar dependências baseado no gerenciador de pacotes preferido
@@ -43,8 +73,12 @@ ENV NODE_ENV=production
 # Descomente a linha seguinte caso queira desabilitar a telemetria durante o runtime.
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Configurar Puppeteer para usar Chrome instalado
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 nextjs
 
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
@@ -55,6 +89,14 @@ RUN chown nextjs:nodejs .next
 # Copiar automaticamente os arquivos de saída baseado no trace
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Criar diretórios necessários para o Chrome
+RUN mkdir -p /home/nextjs/.local/share/applications \
+    && mkdir -p /home/nextjs/.config/google-chrome \
+    && mkdir -p /home/nextjs/.cache \
+    && mkdir -p /tmp/.X11-unix \
+    && chmod 1777 /tmp/.X11-unix \
+    && chown -R nextjs:nodejs /home/nextjs
 
 USER nextjs
 

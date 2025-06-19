@@ -46,7 +46,11 @@ export async function GET(
 
       const plan = await DeliveryPlan.findOne(query)
         .populate('patient', 'name email phone')
-        .populate('professional', 'name email')
+        .populate({
+          path: 'professional',
+          select: 'name email',
+          model: 'User'
+        })
         .populate('company', 'name')
         .populate('analyses', 'type status createdAt result.rawOutput')
 
@@ -75,6 +79,12 @@ export async function GET(
 
     // Buscar o plano sem filtros de empresa para PDF
     const plan = await DeliveryPlan.findById(planId)
+      .populate('patient', 'name email phone')
+      .populate({
+        path: 'professional',
+        select: 'name email',
+        model: 'User'
+      })
       .populate('analyses', 'type status createdAt result.rawOutput')
 
     if (!plan) {
@@ -163,7 +173,11 @@ export async function PUT(
       { new: true }
     )
       .populate('patient', 'name email phone')
-      .populate('professional', 'name email')
+      .populate({
+        path: 'professional',
+        select: 'name email',
+        model: 'User'
+      })
       .populate('company', 'name')
       .populate('analyses', 'type status createdAt result.rawOutput')
 
